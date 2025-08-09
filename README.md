@@ -116,3 +116,6 @@ Edit `claude_agent.py` to customize:
 - `reviewer_username`: Default reviewer
 - `max_lines`: Maximum lines changed (400)
 - `warn_lines`: Warning threshold (300)
+
+---
+*This README was enhanced by Claude Code as a test of the automation system.*

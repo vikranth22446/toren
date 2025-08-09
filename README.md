@@ -147,6 +147,9 @@ Toren is designed as a generic AI CLI runner with minimal coupling:
 4. Run tests: `python -m pytest tests/`
 5. Submit a pull request
 
+## Lint
+bash scripts/quality-check.sh. Runs mypy and flake8
+
 ## License
 
 MIT License - see LICENSE file for details.

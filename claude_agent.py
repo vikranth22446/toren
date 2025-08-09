@@ -30,6 +30,20 @@ class ClaudeAgent:
         self.branch_name_pattern = re.compile(r'^[a-zA-Z0-9._/-]{1,100}$')
         self.docker_image_pattern = re.compile(r'^[a-z0-9._/-]+(?::[a-zA-Z0-9._-]+)?$')
         self.github_issue_pattern = re.compile(r'^https://github\.com/[a-zA-Z0-9._-]+/[a-zA-Z0-9._-]+/issues/\d+$')
+        
+        # Load configuration
+        self.config = self._load_config()
+    
+    def _load_config(self) -> dict:
+        """Load configuration from config.json"""
+        config_path = Path(__file__).parent / "config.json"
+        if config_path.exists():
+            try:
+                with open(config_path, 'r') as f:
+                    return json.load(f)
+            except Exception:
+                pass  # Silently ignore config parsing errors
+        return {}
     
     def _sanitize_branch_name(self, branch_name: str) -> str:
         """Sanitize and validate branch name to prevent command injection"""
@@ -244,8 +258,8 @@ Visit https://github.com/anthropics/claude-code for more information.""",
         run_parser.add_argument(
             "--base-image",
             type=str,
-            required=True,
-            help="Base Docker image to extend with agent tools (e.g., python:3.11, myproject:dev)",
+            default=self.config.get("default_base_image"),
+            help="Base Docker image to extend with agent tools (e.g., python:3.11, myproject:dev). Default from config.json.",
         )
         run_parser.add_argument(
             "--base-branch",
@@ -442,8 +456,8 @@ Visit https://github.com/anthropics/claude-code for more information.""",
             parser.add_argument(
                 "--base-image",
                 type=str,
-                required=True,
-                help="Base Docker image to extend with agent tools",
+                default=self.config.get("default_base_image"),
+                help="Base Docker image to extend with agent tools. Default from config.json.",
             )
             parser.add_argument(
                 "--base-branch",
@@ -528,7 +542,7 @@ Visit https://github.com/anthropics/claude-code for more information.""",
 
             # Security: Sanitize base image name
             if not args.base_image:
-                print("❌ Error: --base-image is required for security")
+                print("❌ Error: --base-image is required. Set it via command line or config.json")
                 return False
                 
             try:
@@ -974,7 +988,6 @@ ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 
             # Get paths to utilities
             github_utils_path = Path(__file__).parent / "github_utils.py"
-            cost_monitor_path = Path(__file__).parent / "claude_cost_monitor.py"
             
             # Create temporary directory for cost data exchange
             cost_data_dir = Path.cwd() / ".claude_cost_data" / f"sync_{hash(spec_file)}"
@@ -990,7 +1003,6 @@ ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
                 "-v",
                 f"{github_utils_path}:/usr/local/bin/github_utils.py",  # Mount GitHub utilities
                 "-v",
-                f"{cost_monitor_path}:/usr/local/bin/claude_cost_monitor.py",  # Mount cost monitor
                 "-v",
                 f"{cost_data_dir}:/tmp/cost_data",  # Mount cost data directory
                 "-w",
@@ -1009,10 +1021,7 @@ ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
                     validated_path = self._validate_mount_path(ssh_path, "SSH directory")
                     docker_cmd.extend(["-v", f"{validated_path}:/root/.ssh"])
                 
-                gh_config_path = Path.home() / ".config/gh"
-                if gh_config_path.exists():
-                    validated_path = self._validate_mount_path(gh_config_path, "GitHub CLI config")
-                    docker_cmd.extend(["-v", f"{validated_path}:/root/.config/gh_mounted:ro"])
+                # GitHub CLI authentication via GITHUB_TOKEN (no file mounting needed)
                 
                 # Mount Claude Code configuration for session authentication
                 # Prefer ~/.claude.json for simpler credential handling
@@ -1620,12 +1629,15 @@ Ready for review! 🎉"""
 
     def _show_job_list(self, jobs: List[Dict]) -> None:
         """Show compact job list with cost information"""
+        # Limit to most recent 10 jobs by default
+        display_jobs = jobs[:10]
+        
         print(
-            f"{'JOB ID':<10} {'STATUS':<12} {'BRANCH':<18} {'COST':<8} {'LINES':<8} {'CREATED':<10} {'SUMMARY'}"
+            f"{'JOB ID':<10} {'STATUS':<12} {'BRANCH':<18} {'COST':<8} {'+/- LINES':<9} {'CREATED':<10} {'SUMMARY'}"
         )
         print("-" * 90)
 
-        for job in jobs:
+        for job in display_jobs:
             job_id = job["job_id"]
             status = self.status_color(job["status"])
             branch = (
@@ -1638,7 +1650,13 @@ Ready for review! 🎉"""
             cost_info = job.get("cost_info", {})
             git_stats = job.get("git_stats", {})
             cost_str = f"${cost_info.get('total_cost', 0):.3f}" if cost_info.get('total_cost', 0) > 0 else "-"
-            lines_str = str(git_stats.get('total_lines_changed', 0)) if git_stats.get('total_lines_changed', 0) > 0 else "-"
+            # Show lines added/removed format: +123/-45
+            lines_added = git_stats.get('lines_added', 0)
+            lines_deleted = git_stats.get('lines_deleted', 0)
+            if lines_added > 0 or lines_deleted > 0:
+                lines_str = f"+{lines_added}/-{lines_deleted}"
+            else:
+                lines_str = "-"
             
             created = self.format_timestamp(job["created_at"])
             summary = (
@@ -1647,7 +1665,29 @@ Ready for review! 🎉"""
                 else job["ai_summary"]
             )
 
-            print(f"{job_id:<10} {status:<20} {branch:<18} {cost_str:<8} {lines_str:<8} {created:<10} {summary}")
+            print(f"{job_id:<10} {status:<12} {branch:<18} {cost_str:<8} {lines_str:<9} {created:<10} {summary}")
+        
+        # Show summary statistics
+        if len(jobs) > len(display_jobs):
+            print(f"\nShowing {len(display_jobs)} of {len(jobs)} jobs (most recent)")
+        
+        # Show status counts
+        status_counts = {}
+        for job in jobs:
+            status = job["status"]
+            status_counts[status] = status_counts.get(status, 0) + 1
+        
+        if status_counts:
+            status_parts = []
+            for status, count in status_counts.items():
+                color_status = self.status_color(status)
+                status_parts.append(f"{color_status}: {count}")
+            print(f"Status summary: {', '.join(status_parts)}")
+        
+        # Suggest cleanup if many completed/failed jobs
+        completed_failed = status_counts.get("completed", 0) + status_counts.get("failed", 0)
+        if completed_failed > 5:
+            print(f"\n💡 Tip: Run 'python3 claude_agent.py cleanup' to remove {completed_failed} completed/failed jobs")
 
     def _show_detailed_job(self, job: Dict) -> None:
         """Show detailed job information"""
@@ -2368,6 +2408,13 @@ Focus on practical implementation concerns for an autonomous AI agent."""
             print(
                 f"💡 Monitor with: python3 claude_agent.py status --job-id {job_id}"
             )
+            # TOOD: FIXME: only the logs command doesn't have --job-id for some reason?
+            print(
+                f"📋 View logs: python3 claude_agent.py logs {job_id}"
+            )
+            print(
+                f"📊 Get summary: python3 claude_agent.py summary --job-id {job_id}"
+            )
         else:
             print(f"❌ Failed to start job {job_id}")
             self.job_manager.update_job_status(
@@ -2400,9 +2447,9 @@ Focus on practical implementation concerns for an autonomous AI agent."""
             )
 
             if container_id:
-                # Update job with container ID and start monitoring
+                # Update job with container ID, agent image and start monitoring
                 self.job_manager.update_job_status(
-                    job_id, "running", container_id=container_id
+                    job_id, "running", container_id=container_id, agent_image=agent_image
                 )
                 self.job_manager.monitor_job(job_id, container_id)
                 return True
@@ -2435,7 +2482,6 @@ Focus on practical implementation concerns for an autonomous AI agent."""
 
             # Get paths to utilities
             github_utils_path = Path(__file__).parent / "github_utils.py"
-            cost_monitor_path = Path(__file__).parent / "claude_cost_monitor.py"
             
             # Create job-specific directory for cost data exchange
             if job_id:
@@ -2454,8 +2500,6 @@ Focus on practical implementation concerns for an autonomous AI agent."""
                 "-v",
                 f"{github_utils_path}:/usr/local/bin/github_utils.py",
                 "-v",
-                f"{cost_monitor_path}:/usr/local/bin/claude_cost_monitor.py",
-                "-v", 
                 f"{cost_data_dir}:/tmp/cost_data",
             ]
 
@@ -2471,10 +2515,7 @@ Focus on practical implementation concerns for an autonomous AI agent."""
                     validated_path = self._validate_mount_path(ssh_path, "SSH directory")
                     docker_cmd.extend(["-v", f"{validated_path}:/root/.ssh"])
                 
-                gh_config_path = Path.home() / ".config/gh"
-                if gh_config_path.exists():
-                    validated_path = self._validate_mount_path(gh_config_path, "GitHub CLI config")
-                    docker_cmd.extend(["-v", f"{validated_path}:/root/.config/gh_mounted:ro"])
+                # GitHub CLI authentication via GITHUB_TOKEN (no file mounting needed)
                 
                 # Mount Claude Code configuration for session authentication
                 # Prefer ~/.claude.json for simpler credential handling
@@ -2489,7 +2530,7 @@ Focus on practical implementation concerns for an autonomous AI agent."""
                 elif claude_dir_path.exists():
                     validated_path = self._validate_mount_path(claude_dir_path, "Claude Code config")
                     docker_cmd.extend(["-v", f"{validated_path}:/root/.claude_mounted:ro"])
-                    
+                print("Docker Command:", ' '.join(docker_cmd + [image]))
             except ValueError as e:
                 print(f"⚠️  Warning: Skipping credential mount: {e}")
                 # Continue without these credentials rather than failing

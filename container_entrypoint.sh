@@ -41,35 +41,8 @@ if [ -n "$GITHUB_TOKEN" ]; then
     echo "https://x-access-token:$GITHUB_TOKEN@github.com" > /root/.git-credentials
     echo "✅ GitHub HTTPS authentication configured"
     
-    # Set up GitHub CLI configuration
-    if [ -d "/root/.config/gh_mounted" ] && [ -f "/root/.config/gh_mounted/config.yml" ]; then
-        echo "🔐 Setting up GitHub CLI configuration from mounted files..."
-        
-        # Copy mounted config to writable location to avoid permission issues
-        mkdir -p /root/.config/gh
-        cp -r /root/.config/gh_mounted/* /root/.config/gh/
-        chmod -R 755 /root/.config/gh
-        
-        echo "✅ GitHub CLI configuration copied from mounted location"
-    else
-        echo "🔧 Setting up GitHub CLI configuration..."
-        mkdir -p /root/.config/gh
-        chmod 755 /root/.config/gh
-        
-        # Create basic gh config.yml with authentication
-        cat > /root/.config/gh/config.yml << 'EOF'
-git_protocol: https
-editor: 
-prompt: enabled
-pager: 
-EOF
-        chmod 644 /root/.config/gh/config.yml
-        echo "✅ GitHub CLI configuration file created"
-    fi
-    
-    # Set up gh authentication using the token
-    echo "$GITHUB_TOKEN" | gh auth login --with-token
-    echo "✅ GitHub CLI authentication configured"
+    # GitHub CLI authentication via GITHUB_TOKEN environment variable
+    echo "🔧 GitHub CLI will use GITHUB_TOKEN for authentication"
 else
     echo "❌ No GitHub token found in environment"
     echo "❌ Git operations will fail - check token setup"
@@ -89,10 +62,16 @@ echo "🌱 Setting up branch: $BRANCH_NAME"
 if git show-ref --verify --quiet refs/heads/"$BRANCH_NAME"; then
     echo "✅ Branch $BRANCH_NAME already exists, checking out..."
     git checkout "$BRANCH_NAME"
+    echo "📡 Pulling latest changes from remote branch..."
+    git pull origin "$BRANCH_NAME" || echo "⚠️  Remote branch may not exist or no changes to pull"
 else
     echo "🌱 Creating new branch: $BRANCH_NAME"
     git checkout -b "$BRANCH_NAME"
 fi
+
+# Record starting commit for git diff calculation at the end
+STARTING_COMMIT=$(git rev-parse HEAD)
+echo "📊 Recording starting commit for diff calculation: ${STARTING_COMMIT:0:8}"
 
 echo "🔧 Setting up $LANGUAGE environment..."
 
@@ -244,12 +223,7 @@ $SECURITY_TOOLS
 
 Use /tmp/claude_docs/ for analysis notes. Working dir: /workspace. Read only essential files to minimize cost."
 
-# Start real-time cost monitoring
-echo "📊 Starting cost monitoring..."
-python3 /usr/local/bin/claude_cost_monitor.py start 30 &
-COST_MONITOR_PID=$!
-
-# Execute Claude with correct command
+# Execute Claude with correct command first
 echo "🤖 Starting Claude execution..."
 
 # Start Claude in background and capture PID
@@ -258,29 +232,137 @@ CLAUDE_PID=$!
 
 # Find and tail Claude's log file to stream to Docker logs
 echo "📋 Setting up log streaming..."
-sleep 2  # Give Claude time to create log file
 
-# Find the most recent Claude project log file
-CLAUDE_LOG_FILE=$(find /root/.claude/projects -name "*.jsonl" -type f 2>/dev/null | head -1)
+# Poll for Claude log file with timeout (40 seconds)
+CLAUDE_LOG_FILE=""
+for i in $(seq 1 40); do
+    sleep 1
+    CLAUDE_LOG_FILE=$(find /root/.claude/projects -name "*.jsonl" -type f 2>/dev/null | head -1)
+    if [ -n "$CLAUDE_LOG_FILE" ] && [ -f "$CLAUDE_LOG_FILE" ]; then
+        echo "📋 Found Claude log file after ${i} seconds: $CLAUDE_LOG_FILE"
+        break
+    fi
+    if [ $((i % 10)) -eq 0 ]; then
+        echo "📋 Still waiting for Claude log file... (${i}s)"
+    fi
+done
 
 if [ -n "$CLAUDE_LOG_FILE" ] && [ -f "$CLAUDE_LOG_FILE" ]; then
     echo "📋 Streaming Claude logs from: $CLAUDE_LOG_FILE"
+    
+    # Initialize cost tracking
+    echo '{"total_cost": 0.0, "input_tokens": 0, "output_tokens": 0, "session_start": "'$(date -Iseconds)'"}' > /tmp/claude_cost_data.json
     
     # Tail the log file and format it for readability
     tail -f "$CLAUDE_LOG_FILE" | while IFS= read -r line; do
         # Extract and format key fields from JSONL for better readability
         echo "$line" | python3 -c "
 import sys, json
+
 try:
-    data = json.loads(sys.stdin.read().strip())
-    if 'content' in data:
-        print(f'🤖 Claude: {data[\"content\"]}')
-    elif 'message' in data:
-        print(f'📝 {data[\"message\"]}')
-    else:
-        print(f'📋 {sys.stdin.read().strip()}')
-except:
-    print(f'📋 {sys.stdin.read().strip()}')
+    line = sys.stdin.read().strip()
+    if not line:
+        exit()
+    
+    data = json.loads(line)
+    
+    # Handle new Claude Code JSONL format 
+    if 'message' in data and data.get('type'):
+        msg = data['message']
+        msg_type = data.get('type')
+        
+        if msg_type == 'assistant':
+            content = msg.get('content', [])
+            if isinstance(content, list):
+                for item in content:
+                    if item.get('type') == 'text':
+                        text = item.get('text', '')
+                        if text and len(text.strip()) > 0:
+                            print(f'🤖 Claude: {text}')
+                    elif item.get('type') == 'tool_use':
+                        tool_name = item.get('name', 'unknown')
+                        tool_input = item.get('input', {})
+                        if tool_name == 'Read':
+                            file_path = tool_input.get('file_path', 'unknown')
+                            print(f'📖 Reading: {file_path}')
+                        elif tool_name == 'Edit':
+                            file_path = tool_input.get('file_path', 'unknown')
+                            print(f'✏️  Editing: {file_path}')
+                        elif tool_name == 'Write':
+                            file_path = tool_input.get('file_path', 'unknown')
+                            print(f'📝 Writing: {file_path}')
+                        elif tool_name == 'Bash':
+                            desc = tool_input.get('description', '')
+                            command = tool_input.get('command', '')
+                            if desc:
+                                print(f'⚡ Running: {desc}')
+                            else:
+                                print(f'⚡ Command: {command[:50]}...' if len(command) > 50 else f'⚡ Command: {command}')
+                        elif tool_name == 'TodoWrite':
+                            print(f'📝 Updated todo list')
+                        elif tool_name == 'Grep':
+                            pattern = tool_input.get('pattern', '')
+                            print(f'🔍 Searching for: {pattern}')
+                        elif tool_name == 'Glob':
+                            pattern = tool_input.get('pattern', '')
+                            print(f'🔍 Finding files: {pattern}')
+                        else:
+                            print(f'🔧 Tool: {tool_name}')
+            
+            # Handle usage info
+            usage = msg.get('usage', {})
+            if usage:
+                input_tokens = usage.get('input_tokens', 0)
+                output_tokens = usage.get('output_tokens', 0)
+                if input_tokens > 0 or output_tokens > 0:
+                    print(f'💰 Tokens: {input_tokens} in, {output_tokens} out')
+                    
+                    # Update cost tracking file
+                    import os
+                    cost_file = '/tmp/claude_cost_data.json'
+                    if os.path.exists(cost_file):
+                        try:
+                            with open(cost_file, 'r') as f:
+                                cost_data = json.load(f)
+                        except:
+                            cost_data = {'total_cost': 0.0, 'input_tokens': 0, 'output_tokens': 0}
+                    else:
+                        cost_data = {'total_cost': 0.0, 'input_tokens': 0, 'output_tokens': 0}
+                    
+                    # Update token counts
+                    cost_data['input_tokens'] += input_tokens  
+                    cost_data['output_tokens'] += output_tokens
+                    
+                    # Update cost (Claude 3.5 Sonnet pricing: $3/1M input, $15/1M output tokens)
+                    cost_data['total_cost'] += (input_tokens * 0.000003) + (output_tokens * 0.000015)
+                    
+                    # Save updated cost data
+                    try:
+                        with open(cost_file, 'w') as f:
+                            json.dump(cost_data, f)
+                    except:
+                        pass
+        
+        elif msg_type == 'user':
+            # Handle tool results  
+            content = msg.get('content', [])
+            if isinstance(content, list):
+                for item in content:
+                    if item.get('type') == 'tool_result':
+                        result = item.get('content', '')
+                        if result and 'error' not in result.lower() and len(result) < 100:
+                            print(f'🔧 Tool result: {result}')
+                        elif 'error' in result.lower():
+                            print(f'❌ Tool error: {result[:100]}')
+                        else:
+                            print(f'🔧 Tool completed successfully')
+    
+    # Skip other internal entries silently
+    
+except Exception as e:
+    # Only show error-related lines
+    if line and ('error' in line.lower() or 'failed' in line.lower() or 'exception' in line.lower()):
+        print(f'❌ {line[:200]}...' if len(line) > 200 else f'❌ {line}')
 " 2>/dev/null || echo "📋 $line"
     done &
     LOG_TAIL_PID=$!
@@ -302,8 +384,82 @@ fi
 echo "📊 Collecting final session statistics..."
 kill $COST_MONITOR_PID 2>/dev/null || true
 
-# Get final cost summary and save to shared directory
-python3 /usr/local/bin/claude_cost_monitor.py summary
+# Generate final cost summary from our tracked data and git stats
+python3 -c "
+import json
+import subprocess
+import re
+from datetime import datetime, timezone
+from pathlib import Path
+
+# Load cost data from our tracking
+cost_data = {'total_cost': 0.0, 'input_tokens': 0, 'output_tokens': 0}
+cost_file = Path('/tmp/claude_cost_data.json')
+
+if cost_file.exists():
+    try:
+        with open(cost_file, 'r') as f:
+            cost_data = json.load(f)
+    except:
+        pass
+
+# Get git statistics
+git_stats = {'files_changed': 0, 'lines_added': 0, 'lines_deleted': 0, 'total_lines_changed': 0}
+
+try:
+    # Get diff stats against the starting commit to capture all changes made during this session
+    starting_commit = '$STARTING_COMMIT'
+    diff_result = subprocess.run(['git', 'diff', '--stat', starting_commit + '..HEAD'], capture_output=True, text=True)
+    
+    if diff_result.returncode == 0 and diff_result.stdout.strip():
+        summary_line = diff_result.stdout.strip().split('\n')[-1]
+        
+        insertion_match = re.search(r'(\d+) insertion', summary_line)
+        if insertion_match:
+            git_stats['lines_added'] = int(insertion_match.group(1))
+            
+        deletion_match = re.search(r'(\d+) deletion', summary_line)  
+        if deletion_match:
+            git_stats['lines_deleted'] = int(deletion_match.group(1))
+            
+        files_match = re.search(r'(\d+) file', summary_line)
+        if files_match:
+            git_stats['files_changed'] = int(files_match.group(1))
+            
+    git_stats['total_lines_changed'] = git_stats['lines_added'] + git_stats['lines_deleted']
+        
+except:
+    pass
+
+# Create final session data
+session_data = {
+    'session_start': '$(date -Iseconds)',
+    'last_update': datetime.now(timezone.utc).isoformat(),
+    'cost': cost_data,
+    'git_stats': git_stats,
+    'summary': {
+        'total_cost': cost_data['total_cost'],
+        'total_tokens': cost_data['input_tokens'] + cost_data['output_tokens'],
+        'input_tokens':  cost_data['input_tokens'],
+        'output_tokens': cost_data['output_tokens'], 
+        'lines_changed': git_stats['total_lines_changed'],
+        'files_changed': git_stats['files_changed']
+    }
+}
+
+# Print summary
+print('📈 Current Session:')
+print(f'  💰 Cost: \${session_data[\"summary\"][\"total_cost\"]:.4f}')
+print(f'  🔤 Tokens: {session_data[\"summary\"][\"total_tokens\"]:,}')
+print(f'  🔤 Input tokens: {session_data[\"summary\"][\"input_tokens\"]:,}')
+print(f'  🔤 Output tokens: {session_data[\"summary\"][\"output_tokens\"]:,}')
+print(f'  📝 Lines changed: {session_data[\"summary\"][\"lines_changed\"]}')
+print(f'  📁 Files modified: {session_data[\"summary\"][\"files_changed\"]}')
+
+# Save to monitoring location
+with open('/tmp/claude_cost_monitor.json', 'w') as f:
+    json.dump(session_data, f, indent=2)
+"
 
 # Export cost data for job manager to pickup
 if [ -f "/tmp/claude_cost_monitor.json" ]; then

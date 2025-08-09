@@ -175,25 +175,48 @@ class JobManager:
         return job_id
 
     def _generate_initial_summary(self, task_spec: str) -> str:
-        """Generate AI summary of the task (simplified for now)"""
-        # Extract first few lines/sentences for summary
-        lines = task_spec.strip().split("\n")
-        summary_lines = []
-        char_count = 0
+        """Generate AI summary of the task"""
+        try:
+            import subprocess
+            
+            # Create prompt for Claude to generate 5-word title
+            summary_prompt = f"""Generate exactly 5 words that summarize this task specification:
 
-        for line in lines[:5]:  # Max 5 lines
-            if char_count + len(line) > 200:  # Max 200 chars
-                break
-            summary_lines.append(line.strip())
-            char_count += len(line)
+{task_spec}
 
-        return " ".join(summary_lines) or "Task processing..."
+Return only the 5-word title, nothing else."""
+
+            # Use Claude CLI to generate summary
+            result = subprocess.run([
+                "claude", "--print", summary_prompt
+            ], capture_output=True, text=True, timeout=15)
+            
+            if result.returncode == 0 and result.stdout.strip():
+                ai_summary = result.stdout.strip()
+                # Clean up the response
+                if ai_summary.startswith('"') and ai_summary.endswith('"'):
+                    ai_summary = ai_summary[1:-1]
+                
+                # Ensure it's roughly 5 words (allow some flexibility)
+                words = ai_summary.split()
+                if 3 <= len(words) <= 7:
+                    return ai_summary
+                
+        except Exception:
+            pass  # Fall back to rule-based summary
+        
+        # Fallback: Extract key words from first line
+        first_line = task_spec.strip().split("\n")[0] if task_spec.strip() else ""
+        words = first_line.split()[:5]
+        
+        return " ".join(words) if words else "Task processing..."
 
     def update_job_status(
         self,
         job_id: str,
         status: str,
         container_id: Optional[str] = None,
+        agent_image: Optional[str] = None,
         progress_message: Optional[str] = None,
         error_message: Optional[str] = None,
         pr_url: Optional[str] = None,
@@ -214,6 +237,8 @@ class JobManager:
 
                 if container_id:
                     job_data["container_id"] = container_id
+                if agent_image:
+                    job_data["agent_image"] = agent_image
                 if progress_message:
                     job_data["progress_log"].append(
                         {
@@ -273,7 +298,8 @@ class JobManager:
                 job_data["updated_at"] = datetime.now(timezone.utc).isoformat()
 
                 with self._atomic_write(job_file) as temp_file:
-                    json.dump(job_data, temp_file, indent=2)
+                    with open(temp_file, 'w') as f:
+                        json.dump(job_data, f, indent=2)
                 
                 return True
 
@@ -309,12 +335,8 @@ class JobManager:
                 else:
                     print(f"⚠️  Failed to update job {job_id} with cost data")
                 
-                # Cleanup cost data file
-                try:
-                    cost_data_file.unlink()
-                    cost_data_file.parent.rmdir()
-                except OSError:
-                    pass  # Directory might not be empty or file might not exist
+                # Keep cost data file for future reference
+                # Note: Cost data is preserved for debugging and analysis
                     
             else:
                 print(f"⚠️  No cost data file found for job {job_id}")
@@ -350,8 +372,73 @@ class JobManager:
         except Exception:
             return None
 
+    def sync_job_statuses(self) -> None:
+        """Sync job statuses with actual container states"""
+        jobs = []
+        for job_file in self.jobs_dir.glob("*.json"):
+            job_data = self._safe_load_job(job_file)
+            if job_data is None:
+                continue
+            jobs.append(job_data)
+        
+        for job in jobs:
+            job_id = job.get("job_id")
+            container_id = job.get("container_id")
+            current_status = job.get("status")
+            
+            # Only check jobs that think they're running/queued
+            if current_status in ["running", "queued"] and container_id:
+                try:
+                    # Check if container exists and get its status
+                    result = subprocess.run(
+                        ["docker", "inspect", container_id, "--format", "{{.State.Status}}"],
+                        capture_output=True,
+                        text=True,
+                        timeout=10,
+                    )
+                    
+                    if result.returncode != 0:
+                        # Container doesn't exist anymore
+                        self.update_job_status(
+                            job_id,
+                            "failed",
+                            error_message="Container stopped unexpectedly",
+                        )
+                    else:
+                        status = result.stdout.strip()
+                        if status == "exited":
+                            # Check exit code
+                            exit_result = subprocess.run(
+                                ["docker", "inspect", container_id, "--format", "{{.State.ExitCode}}"],
+                                capture_output=True,
+                                text=True,
+                                timeout=10,
+                            )
+                            
+                            if exit_result.returncode == 0 and exit_result.stdout.strip() == "0":
+                                # Job completed successfully
+                                self._extract_and_update_cost_data(job_id)
+                                self.update_job_status(job_id, "completed")
+                            else:
+                                self.update_job_status(
+                                    job_id,
+                                    "failed",
+                                    error_message=f"Container exited with code {exit_result.stdout.strip()}",
+                                )
+                        elif status == "running" and current_status == "queued":
+                            self.update_job_status(job_id, "running")
+                            
+                except Exception as e:
+                    # If we can't check the container, mark as failed
+                    self.update_job_status(
+                        job_id, "failed", error_message=f"Status check error: {e}"
+                    )
+
     def list_jobs(self, status_filter: Optional[str] = None) -> List[Dict[str, Any]]:
         """List all jobs, optionally filtered by status"""
+        # Sync job statuses with actual container states first
+        self.sync_job_statuses()
+        
         jobs = []
 
         for job_file in self.jobs_dir.glob("*.json"):
@@ -372,19 +459,49 @@ class JobManager:
         if not job_data:
             return False
 
-        # Stop container if still running
-        if job_data.get("container_id") and job_data.get("status") in [
-            "running",
-            "queued",
-        ]:
+        container_id = job_data.get("container_id")
+        agent_image = job_data.get("agent_image")
+
+        # Stop and remove container if it exists
+        if container_id:
             try:
+                # Kill container if still running
+                if job_data.get("status") in ["running", "queued"]:
+                    subprocess.run(
+                        ["docker", "kill", container_id],
+                        capture_output=True,
+                        timeout=10,
+                    )
+                
+                # Remove container
                 subprocess.run(
-                    ["docker", "kill", job_data["container_id"]],
+                    ["docker", "rm", container_id],
                     capture_output=True,
                     timeout=10,
                 )
             except:
                 pass
+
+        # Remove agent image if it was created for this job
+        if agent_image and agent_image.startswith("claude-agent-"):
+            try:
+                subprocess.run(
+                    ["docker", "rmi", agent_image],
+                    capture_output=True,
+                    timeout=30,
+                )
+            except:
+                pass
+
+        # Clean up cost data directory if it exists
+        try:
+            from pathlib import Path
+            cost_data_dir = Path.cwd() / ".claude_cost_data" / job_id
+            if cost_data_dir.exists():
+                import shutil
+                shutil.rmtree(cost_data_dir, ignore_errors=True)
+        except:
+            pass
 
         # Remove job file atomically
         job_file = self.jobs_dir / f"{job_id}.json"

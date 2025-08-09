@@ -1,0 +1,5 @@
+# Security scanning tools
+bandit==1.7.5          # Python code security scanner
+safety==2.3.5           # Dependency vulnerability scanner
+pip-audit==2.6.1        # Python package vulnerability scanner
+semgrep==1.45.0         # Static analysis security scanner

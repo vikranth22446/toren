@@ -1,0 +1,18 @@
+[bandit]
+# Bandit configuration for Claude Agent
+exclude_dirs = [
+    "tests",
+    "venv",
+    ".venv",
+    "__pycache__"
+]
+
+# Skip certain tests that may be false positives
+skips = [
+    # B101 - assert_used: We use asserts in non-production code
+    "B101"
+]
+
+# Set confidence levels
+confidence = ["HIGH", "MEDIUM"]
+severity = ["HIGH", "MEDIUM"]

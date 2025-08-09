@@ -1,29 +1,13 @@
 # Claude Agent Runner Testing Plan
 *Comprehensive incremental testing - Total time budget: ~3.5 hours*
 
-## Prerequisites (5 minutes)
-- [ ] Test repository set up with issues **and PRs**
-- [ ] GitHub CLI (`gh`) authenticated  
-- [ ] Docker installed and running
-- [ ] `ANTHROPIC_API_KEY` environment variable set
-- [ ] Create test PR with @claude mentions for PR continuation testing
-
----
-
 ## Phase 1: GitHub Integration Testing (50 minutes)
 
-### 1.1 Basic GitHub Utils Testing (15 minutes)
-**Setup:**
-```bash
-cd claude_agent_runner
-# Test the github_utils.py directly
-```
-
 **Tests:**
-- [ ] **Comment on issue**: `python github_utils.py comment-issue 1 "Test comment"`
-- [ ] **Get issue details**: `python github_utils.py get-issue 1`
-- [ ] **Progress notification**: `python github_utils.py notify-progress "Testing phase" --details "Basic functionality"`
-- [ ] **Status update**: `python github_utils.py update-status "Running tests"`
+- [x] **Comment on issue**: `python github_utils.py comment-issue 1 "Test comment"`
+- [x] **Get issue details**: `python github_utils.py get-issue 1`
+- [x] **Progress notification**: `python github_utils.py notify-progress "Testing phase" --details "Basic functionality"`
+- [x] **Status update**: `python github_utils.py update-status "Running tests"`
 
 **Expected Results:**
 - Comments appear on GitHub issue

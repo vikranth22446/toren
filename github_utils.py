@@ -9,12 +9,13 @@ import subprocess
 import json
 import sys
 import os
-from typing import Optional, Dict, Any, Tuple
+from typing import Optional, Dict, Any, Tuple, List
 
 
 class GitHubUtils:
     def __init__(self, default_reviewer: str = "vikranth22446"):
         self.default_reviewer = default_reviewer
+        # Support for both issue and PR notifications
 
     def run_gh_command(self, cmd: list) -> Tuple[bool, str]:
         """Run gh CLI command and return success, output"""
@@ -167,9 +168,11 @@ Focus on the most recent comments mentioning @claude for current tasks.
         if issue_number:
             return self.comment_issue(issue_number, status_msg)
         else:
-            # Try to find issue number from environment or working directory
+            # Try to find issue/PR number from environment or working directory
             if "GITHUB_ISSUE_NUMBER" in os.environ:
                 return self.comment_issue(os.environ["GITHUB_ISSUE_NUMBER"], status_msg)
+            elif "PR_NUMBER" in os.environ:
+                return self.comment_pr(os.environ["PR_NUMBER"], status_msg)
             else:
                 print(f"📝 Status: {message}")
                 return True

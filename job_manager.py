@@ -490,7 +490,7 @@ class JobManager:
                     elif status == "running":
                         self.update_job_status(job_id, "running")
 
-                    time.sleep(30)  # Check every 30 seconds
+                    time.sleep(10)  # Check every 10 seconds (faster monitoring)
 
                 except Exception as e:
                     self.update_job_status(
@@ -500,3 +500,23 @@ class JobManager:
 
         thread = threading.Thread(target=monitor, daemon=True)
         thread.start()
+        
+        # Immediate status check (don't wait for first polling cycle)
+        def immediate_check():
+            time.sleep(2)  # Give container a moment to start
+            try:
+                result = subprocess.run(
+                    ["docker", "inspect", container_id, "--format", "{{.State.Status}}"],
+                    capture_output=True, text=True, timeout=5
+                )
+                if result.returncode == 0:
+                    status = result.stdout.strip()
+                    if status == "exited":
+                        # Container already exited, force monitoring thread to check immediately
+                        pass  # The daemon thread will pick it up in next cycle
+            except Exception:
+                pass  # Ignore immediate check errors
+                
+        # Start immediate check in background
+        immediate_thread = threading.Thread(target=immediate_check, daemon=True)
+        immediate_thread.start()

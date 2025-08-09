@@ -11,7 +11,7 @@ import json
 import re
 import fcntl
 from pathlib import Path
-from typing import Optional, Dict, List, Tuple
+from typing import Optional, Dict, List, Tuple, Any
 import tempfile
 import hashlib
 from contextlib import contextmanager
@@ -152,6 +152,25 @@ class ClaudeAgent:
         except Exception as e:
             raise ValueError(f"Invalid {description}: {e}")
 
+    def _get_anthropic_api_key(self) -> Optional[str]:
+        """Get Anthropic API key from environment or ~/.claude.json fallback"""
+        # First try environment variable
+        if "ANTHROPIC_API_KEY" in os.environ and os.environ["ANTHROPIC_API_KEY"].strip():
+            return os.environ["ANTHROPIC_API_KEY"]
+        
+        # Fallback to ~/.claude.json
+        claude_json_path = Path.home() / ".claude.json"
+        if claude_json_path.exists():
+            try:
+                with open(claude_json_path, 'r') as f:
+                    claude_config = json.load(f)
+                    if "primaryApiKey" in claude_config and claude_config["primaryApiKey"].strip():
+                        return claude_config["primaryApiKey"]
+            except (json.JSONDecodeError, KeyError, IOError) as e:
+                print(f"⚠️  Warning: Failed to read ~/.claude.json: {e}")
+        
+        return None
+
     def _get_language_config(self, language: str) -> Dict[str, str]:
         """Get language-specific configuration and tools"""
         configs = {
@@ -226,8 +245,7 @@ Visit https://github.com/anthropics/claude-code for more information.""",
         run_parser.add_argument(
             "--branch",
             type=str,
-            required=True,
-            help="Branch name to create (e.g., fix/issue-123, feature/new-api)",
+            help="Branch name to create (e.g., fix/issue-123, feature/new-api). Optional for --pr mode.",
         )
         run_parser.add_argument(
             "--reviewer",
@@ -423,8 +441,9 @@ Visit https://github.com/anthropics/claude-code for more information.""",
             parser = argparse.ArgumentParser(description="Claude Agent Worker")
             parser.add_argument("--spec", type=str, help="Path to markdown spec file")
             parser.add_argument("--issue", type=str, help="GitHub issue URL")
+            parser.add_argument("--pr", type=str, help="GitHub PR number to continue working on")
             parser.add_argument(
-                "--branch", type=str, required=True, help="Branch name to create"
+                "--branch", type=str, help="Branch name to create (optional for --pr mode)"
             )
             parser.add_argument(
                 "--reviewer",
@@ -508,12 +527,16 @@ Visit https://github.com/anthropics/claude-code for more information.""",
                     print(f"❌ Error: {e}")
                     return False
 
-            # Security: Sanitize branch name
-            try:
-                args.branch = self._sanitize_branch_name(args.branch)
-            except ValueError as e:
-                print(f"❌ Error: {e}")
+            # Validate branch name requirement and sanitize
+            if not args.pr and not args.branch:
+                print("❌ Error: --branch is required when not using --pr mode")
                 return False
+            elif args.branch:  # Sanitize if branch is provided
+                try:
+                    args.branch = self._sanitize_branch_name(args.branch)
+                except ValueError as e:
+                    print(f"❌ Error: {e}")
+                    return False
 
             # Security: Sanitize base image name
             if not args.base_image:
@@ -602,8 +625,9 @@ Visit https://github.com/anthropics/claude-code for more information.""",
         """Use Claude to estimate potential API cost for a task"""
         try:
             import os
-            if "ANTHROPIC_API_KEY" not in os.environ:
-                print("❌ Cost estimation requires ANTHROPIC_API_KEY environment variable")
+            api_key = self._get_anthropic_api_key()
+            if not api_key:
+                print("❌ Cost estimation requires ANTHROPIC_API_KEY environment variable or ~/.claude.json")
                 return None
                 
             print("💰 Asking Claude to estimate task cost...")
@@ -797,7 +821,8 @@ RUN if command -v apt-get >/dev/null 2>&1; then \\
 # Install GitHub CLI
 RUN if command -v apt-get >/dev/null 2>&1; then \\
         curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg && \\
-        echo "deb [arch=$$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list && \\
+        chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg && \\
+        echo "deb [arch=\\$$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null && \\
         apt-get update && apt-get install -y gh; \\
     else \\
         curl -fsSL https://github.com/cli/cli/releases/download/v2.40.1/gh_2.40.1_linux_amd64.tar.gz | \\
@@ -807,7 +832,7 @@ RUN if command -v apt-get >/dev/null 2>&1; then \\
     fi
 
 # Install Claude Code CLI
-RUN curl -fsSL https://claude.ai/install.sh | sh
+RUN curl -fsSL https://claude.ai/install.sh | bash
 
 # Install Python security scanning tools (optional)
 COPY security-requirements.txt /tmp/security-requirements.txt
@@ -994,6 +1019,12 @@ ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
                 if gh_config_path.exists():
                     validated_path = self._validate_mount_path(gh_config_path, "GitHub CLI config")
                     docker_cmd.extend(["-v", f"{validated_path}:/root/.config/gh"])
+                
+                # Mount Claude Code configuration for session authentication (read-only, will be copied)
+                claude_config_path = Path.home() / ".claude"
+                if claude_config_path.exists():
+                    validated_path = self._validate_mount_path(claude_config_path, "Claude Code config")
+                    docker_cmd.extend(["-v", f"{validated_path}:/root/.claude_mounted:ro"])
                     
             except ValueError as e:
                 print(f"⚠️  Warning: Skipping credential mount: {e}")
@@ -1037,12 +1068,14 @@ ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
             # Add environment variables (secure credential handling)
             env_vars = []
             api_key_file = None
-            if "ANTHROPIC_API_KEY" in os.environ:
+            api_key = self._get_anthropic_api_key()
+            
+            if api_key:
                 # Write API key to temporary file for secure mounting
                 api_key_fd, api_key_path = tempfile.mkstemp(suffix=".key", prefix="anthropic_")
                 try:
                     with os.fdopen(api_key_fd, 'w') as f:
-                        f.write(os.environ['ANTHROPIC_API_KEY'])
+                        f.write(api_key)
                     api_key_file = api_key_path
                     # Mount API key as file instead of environment variable
                     docker_cmd.extend(["-v", f"{api_key_path}:/run/secrets/anthropic_api_key:ro"])
@@ -1051,13 +1084,41 @@ ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
                 except Exception as e:
                     print(f"⚠️  Warning: Could not create secure API key file: {e}")
                     # Fallback to environment variable (less secure)
-                    env_vars.extend(["-e", f"ANTHROPIC_API_KEY={os.environ['ANTHROPIC_API_KEY']}"]) 
+                    env_vars.extend(["-e", f"ANTHROPIC_API_KEY={api_key}"]) 
                     if api_key_file:
                         try:
                             os.unlink(api_key_file)
                         except OSError:
                             pass
                         api_key_file = None
+            else:
+                # Check if ~/.claude.json exists and mount it
+                claude_json_path = Path.home() / ".claude.json"
+                if claude_json_path.exists():
+                    docker_cmd.extend(["-v", f"{claude_json_path}:/root/.claude.json:ro"])
+                    print("🔐 Mounting ~/.claude.json for Claude Code authentication")
+            
+            # Add GitHub token for authentication
+            try:
+                # Try to get GitHub token from gh CLI
+                gh_token_result = subprocess.run(
+                    ["gh", "auth", "status", "--show-token"], 
+                    capture_output=True, text=True, check=False
+                )
+                if gh_token_result.returncode == 0:
+                    # GitHub CLI outputs to stderr, check both stdout and stderr
+                    output = gh_token_result.stdout + gh_token_result.stderr
+                    if "Token:" in output:
+                        # Extract token from "Token: gho_xxxx" line
+                        for line in output.split('\n'):
+                            if 'Token:' in line:
+                                token = line.split('Token:')[1].strip()
+                                env_vars.extend(["-e", f"GITHUB_TOKEN={token}"])
+                                print(f"✅ GitHub token configured ({len(token)} chars)")
+                                break
+            except Exception as e:
+                print(f"⚠️  Warning: Could not get GitHub token: {e}")
+            
             if issue_number:
                 env_vars.extend(["-e", f"GITHUB_ISSUE_NUMBER={issue_number}"])
 
@@ -1346,6 +1407,9 @@ Please review the changes and test as appropriate for your workflow.
             if pr_data and pr_data.get('headRefName'):
                 args.branch = pr_data['headRefName']  # Use existing PR branch
                 print(f"📋 Using existing PR branch: {args.branch}")
+            else:
+                print(f"❌ Error: Could not determine branch for PR #{args.pr}")
+                sys.exit(1)
             # Store PR number for container environment
             self._current_pr_number = args.pr
             # For PR mode, the task spec comes entirely from PR analysis
@@ -1392,8 +1456,11 @@ Please review the changes and test as appropriate for your workflow.
             print(concern_msg)
             sys.exit(1)
 
-        # Merge specifications
-        task_spec = self.merge_specifications(spec_content, issue_title, issue_body)
+        # Use the appropriate task specification based on mode
+        if args.pr:
+            task_spec = all_content  # PR mode: use the complete PR task specification
+        else:
+            task_spec = self.merge_specifications(spec_content, issue_title, issue_body)
 
         # Branch creation happens in container
 
@@ -2199,10 +2266,9 @@ Focus on practical implementation concerns for an autonomous AI agent."""
             issues.append(f"Cannot check GitHub CLI auth status: {e}")
         
         # Check for ANTHROPIC_API_KEY
-        if 'ANTHROPIC_API_KEY' not in os.environ:
-            issues.append("ANTHROPIC_API_KEY environment variable is not set")
-        elif not os.environ['ANTHROPIC_API_KEY'].strip():
-            issues.append("ANTHROPIC_API_KEY environment variable is empty")
+        api_key = self._get_anthropic_api_key()
+        if not api_key:
+            issues.append("No Anthropic API key found (set ANTHROPIC_API_KEY or ~/.claude.json with primaryApiKey)")
         
         # Check git configuration
         try:
@@ -2245,6 +2311,9 @@ Focus on practical implementation concerns for an autonomous AI agent."""
             if pr_data and pr_data.get('headRefName'):
                 args.branch = pr_data['headRefName']  # Use existing PR branch
                 print(f"📋 Using existing PR branch: {args.branch}")
+            else:
+                print(f"❌ Error: Could not determine branch for PR #{args.pr}")
+                return
             # Store PR number for container environment
             self._current_pr_number = args.pr
         else:
@@ -2410,6 +2479,12 @@ Focus on practical implementation concerns for an autonomous AI agent."""
                 if gh_config_path.exists():
                     validated_path = self._validate_mount_path(gh_config_path, "GitHub CLI config")
                     docker_cmd.extend(["-v", f"{validated_path}:/root/.config/gh"])
+                
+                # Mount Claude Code configuration for session authentication (read-only, will be copied)
+                claude_config_path = Path.home() / ".claude"
+                if claude_config_path.exists():
+                    validated_path = self._validate_mount_path(claude_config_path, "Claude Code config")
+                    docker_cmd.extend(["-v", f"{validated_path}:/root/.claude_mounted:ro"])
                     
             except ValueError as e:
                 print(f"⚠️  Warning: Skipping credential mount: {e}")
@@ -2453,12 +2528,14 @@ Focus on practical implementation concerns for an autonomous AI agent."""
             # Add environment variables (secure credential handling)
             env_vars = []
             api_key_file = None
-            if "ANTHROPIC_API_KEY" in os.environ:
+            api_key = self._get_anthropic_api_key()
+            
+            if api_key:
                 # Write API key to temporary file for secure mounting
                 api_key_fd, api_key_path = tempfile.mkstemp(suffix=".key", prefix="anthropic_")
                 try:
                     with os.fdopen(api_key_fd, 'w') as f:
-                        f.write(os.environ['ANTHROPIC_API_KEY'])
+                        f.write(api_key)
                     api_key_file = api_key_path
                     # Mount API key as file instead of environment variable
                     docker_cmd.extend(["-v", f"{api_key_path}:/run/secrets/anthropic_api_key:ro"])
@@ -2467,13 +2544,41 @@ Focus on practical implementation concerns for an autonomous AI agent."""
                 except Exception as e:
                     print(f"⚠️  Warning: Could not create secure API key file: {e}")
                     # Fallback to environment variable (less secure)
-                    env_vars.extend(["-e", f"ANTHROPIC_API_KEY={os.environ['ANTHROPIC_API_KEY']}"]) 
+                    env_vars.extend(["-e", f"ANTHROPIC_API_KEY={api_key}"]) 
                     if api_key_file:
                         try:
                             os.unlink(api_key_file)
                         except OSError:
                             pass
                         api_key_file = None
+            else:
+                # Check if ~/.claude.json exists and mount it
+                claude_json_path = Path.home() / ".claude.json"
+                if claude_json_path.exists():
+                    docker_cmd.extend(["-v", f"{claude_json_path}:/root/.claude.json:ro"])
+                    print("🔐 Mounting ~/.claude.json for Claude Code authentication")
+            
+            # Add GitHub token for authentication
+            try:
+                # Try to get GitHub token from gh CLI
+                gh_token_result = subprocess.run(
+                    ["gh", "auth", "status", "--show-token"], 
+                    capture_output=True, text=True, check=False
+                )
+                if gh_token_result.returncode == 0:
+                    # GitHub CLI outputs to stderr, check both stdout and stderr
+                    output = gh_token_result.stdout + gh_token_result.stderr
+                    if "Token:" in output:
+                        # Extract token from "Token: gho_xxxx" line
+                        for line in output.split('\n'):
+                            if 'Token:' in line:
+                                token = line.split('Token:')[1].strip()
+                                env_vars.extend(["-e", f"GITHUB_TOKEN={token}"])
+                                print(f"✅ GitHub token configured ({len(token)} chars)")
+                                break
+            except Exception as e:
+                print(f"⚠️  Warning: Could not get GitHub token: {e}")
+            
             if issue_number:
                 env_vars.extend(["-e", f"GITHUB_ISSUE_NUMBER={issue_number}"])
             if hasattr(self, '_current_pr_number') and self._current_pr_number:

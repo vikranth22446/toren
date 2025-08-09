@@ -75,33 +75,28 @@ class GitHubUtils:
 
     def get_pr_comments(self, pr_number: str) -> List[Dict[str, Any]]:
         """Get PR comments, filtered for @claude mentions"""
+        # PR comments are stored as issue comments in GitHub API
         success, output = self.run_gh_command([
-            "api", f"repos/:owner/:repo/pulls/{pr_number}/comments", 
-            "--jq", ".[].body"
+            "api", f"repos/:owner/:repo/issues/{pr_number}/comments"
         ])
         
         comments = []
         if success:
             try:
-                # Get full comment data with metadata
-                success_full, output_full = self.run_gh_command([
-                    "api", f"repos/:owner/:repo/pulls/{pr_number}/comments"
-                ])
-                if success_full:
-                    all_comments = json.loads(output_full)
-                    
-                    # Filter for @claude mentions
-                    for comment in all_comments:
-                        body = comment.get("body", "")
-                        if "@claude" in body.lower():
-                            comments.append({
-                                "id": comment.get("id"),
-                                "body": body,
-                                "user": comment.get("user", {}).get("login"),
-                                "created_at": comment.get("created_at"),
-                                "updated_at": comment.get("updated_at")
-                            })
-                            
+                all_comments = json.loads(output)
+                
+                # Filter for @claude mentions
+                for comment in all_comments:
+                    body = comment.get("body", "")
+                    if "@claude" in body.lower():
+                        comments.append({
+                            "id": comment.get("id"),
+                            "body": body,
+                            "user": comment.get("user", {}).get("login"),
+                            "created_at": comment.get("created_at"),
+                            "updated_at": comment.get("updated_at")
+                        })
+                        
             except json.JSONDecodeError:
                 pass
                 

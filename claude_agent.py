@@ -157,18 +157,6 @@ class ClaudeAgent:
         # First try environment variable
         if "ANTHROPIC_API_KEY" in os.environ and os.environ["ANTHROPIC_API_KEY"].strip():
             return os.environ["ANTHROPIC_API_KEY"]
-        
-        # Fallback to ~/.claude.json
-        claude_json_path = Path.home() / ".claude.json"
-        if claude_json_path.exists():
-            try:
-                with open(claude_json_path, 'r') as f:
-                    claude_config = json.load(f)
-                    if "primaryApiKey" in claude_config and claude_config["primaryApiKey"].strip():
-                        return claude_config["primaryApiKey"]
-            except (json.JSONDecodeError, KeyError, IOError) as e:
-                print(f"⚠️  Warning: Failed to read ~/.claude.json: {e}")
-        
         return None
 
     def _get_language_config(self, language: str) -> Dict[str, str]:
@@ -624,12 +612,6 @@ Visit https://github.com/anthropics/claude-code for more information.""",
     def estimate_task_cost(self, task_content: str, language: str = "python") -> Optional[Dict[str, Any]]:
         """Use Claude to estimate potential API cost for a task"""
         try:
-            import os
-            api_key = self._get_anthropic_api_key()
-            if not api_key:
-                print("❌ Cost estimation requires ANTHROPIC_API_KEY environment variable or ~/.claude.json")
-                return None
-                
             print("💰 Asking Claude to estimate task cost...")
             
             estimation_prompt = f"""Analyze this task specification and estimate the Claude API cost to complete it:

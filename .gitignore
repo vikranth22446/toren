@@ -117,3 +117,5 @@ dmypy.json
 *.iml
 *.iws
 *.ipr
+
+.claude_cost_data/

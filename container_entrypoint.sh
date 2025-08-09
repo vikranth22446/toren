@@ -119,9 +119,6 @@ if [ -d "/root/.claude_mounted" ] && [ -n "$(ls -A /root/.claude_mounted 2>/dev/
     chown -R root:root /root/.claude
     chmod -R 755 /root/.claude
     echo "✅ Claude Code configuration copied to writable location"
-elif [ -f "/run/secrets/anthropic_api_key" ]; then
-    echo "🔐 Loading API key from secure file..."
-    export ANTHROPIC_API_KEY=$(cat /run/secrets/anthropic_api_key)
 elif [ -n "$ANTHROPIC_API_KEY_FILE" ] && [ -f "$ANTHROPIC_API_KEY_FILE" ]; then
     echo "🔐 Loading API key from specified file..."
     export ANTHROPIC_API_KEY=$(cat "$ANTHROPIC_API_KEY_FILE")
@@ -142,7 +139,6 @@ elif [ -f "/tmp/claude_credentials.json" ]; then
     echo "📊 User config validation:"
     if grep -q "primaryApiKey" /root/.claude.json; then
         echo "   ✅ primaryApiKey found"
-        # Verify API key format (should start with sk-ant-)
         if grep -q "sk-ant-" /root/.claude.json; then
             echo "   ✅ API key format valid"
         else
@@ -207,6 +203,7 @@ $CO_AUTHOR_LINE\" && git push -u origin $BRANCH_NAME
 
 $PR_WORKFLOW
 
+You should post updates after major steps via notify-progress and notify-completion commands.
 GitHub utils (python /usr/local/bin/github_utils.py):
 - notify-progress \"step\" - Report progress
 - notify-completion \"summary\" --reviewer \${DEFAULT_REVIEWER:-\"vikranth22446\"} - Mark complete (use AFTER updating PR)
@@ -224,7 +221,7 @@ COST_MONITOR_PID=$!
 
 # Execute Claude with correct command
 echo "🤖 Starting Claude execution..."
-IS_SANDBOX=1 claude --dangerously-skip-permissions --print "$CLAUDE_PROMPT"
+IS_SANDBOX=1 claude --dangerously-skip-permissions "$CLAUDE_PROMPT"
 CLAUDE_EXIT_CODE=$?
 
 # Stop cost monitoring and get final stats

@@ -119,6 +119,8 @@ Edit `claude_agent.py` to customize:
 
 ---
 
+*This is an AI-generated logo*
+
 ```
     ╭─╮
     │C│  Powered by Claude

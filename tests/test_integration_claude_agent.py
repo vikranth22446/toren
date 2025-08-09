@@ -214,10 +214,9 @@ def test_run_command_interactive():
             "--spec",
             spec_file,
             "--base-image",
-            "alpine:latest",
+            "claude-auth-test:latest",
             "--branch",
             f"test-integration-{int(time.time())}",
-            "--disable-daemon",  # Run synchronously for testing
         ]
 
         print(f"\nWill run: {' '.join(run_cmd)}")

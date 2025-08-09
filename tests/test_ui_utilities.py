@@ -230,7 +230,7 @@ def test_job_list_display():
     assert "BRANCH" in output  # Header
     assert "abc12345" in output  # First job ID
     assert "def67890" in output  # Second job ID
-    assert "feature/new-feature" in output  # Branch name
+    assert "feature/new-feat.." in output or "feature/new-feature" in output  # Branch name (may be truncated)
     assert "$0.023" in output or "$0.024" in output  # Cost formatting
     print("✅ Job list contains expected elements")
 

@@ -4,7 +4,7 @@
 
 ```bash
 # Clone the repository
-git clone https://github.com/vikranth22446/claude_agent_runner.git
+git clone https://github.com/vikranth22446/toren.git
 cd claude_agent_runner
 
 # Install with pip (creates 'toren' command)

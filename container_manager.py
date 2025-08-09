@@ -111,7 +111,7 @@ ENV PYTHONPATH="/usr/local/bin:$PYTHONPATH"
 COPY container/ /usr/local/
 COPY github_utils.py /usr/local/bin/github_utils.py
 COPY message_templates.py /usr/local/bin/message_templates.py
-RUN chmod +x /usr/local/entrypoint.sh /usr/local/lib/*.sh /usr/local/lib/*.py /usr/local/bin/github_utils.py
+RUN chmod +x /usr/local/entrypoint.sh /usr/local/lib/*.sh /usr/local/lib/*.py /usr/local/bin/github_utils.py /usr/local/bin/message_templates.py
 
 WORKDIR /workspace
 ENTRYPOINT ["/usr/local/entrypoint.sh"]
@@ -226,6 +226,18 @@ ENTRYPOINT ["/usr/local/entrypoint.sh"]
                             "cp",
                             str(github_utils_path),
                             str(Path(temp_dir) / "github_utils.py"),
+                        ],
+                        check=True,
+                    )
+
+                # Copy message_templates.py for container operations
+                message_templates_path = Path(__file__).parent / "message_templates.py"
+                if message_templates_path.exists():
+                    subprocess.run(
+                        [
+                            "cp",
+                            str(message_templates_path),
+                            str(Path(temp_dir) / "message_templates.py"),
                         ],
                         check=True,
                     )

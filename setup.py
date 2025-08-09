@@ -22,7 +22,7 @@ setup(
     long_description_content_type="text/markdown",
     author="Toren Development Team",
     author_email="dev@toren.ai",
-    url="https://github.com/vikranth22446/claude_agent_runner",
+    url="https://github.com/vikranth22446/toren",
     # Include all Python modules in the current directory
     py_modules=[
         "toren",

@@ -13,10 +13,11 @@ class CLIParser:
     def __init__(self, reviewer_username: str, config: Dict[str, Any]):
         self.reviewer_username = reviewer_username
         self.config = config
+        self._parser = None
 
     def parse_args(self) -> argparse.Namespace:
         """Parse command line arguments"""
-        parser = argparse.ArgumentParser(
+        self._parser = argparse.ArgumentParser(
             description="Toren - Multi-AI CLI Agent Runner",
             epilog="""Common workflows:
   Health check:   toren health --docker-image python:3.11 --security
@@ -29,10 +30,10 @@ class CLIParser:
                    --spec ml_task.md --branch fix/training \\
                    --env CUDA_VISIBLE_DEVICES=0 --volume /data:/workspace/data
 
-Visit https://github.com/vikranth22446/claude_agent_runner for more information.""",
+Visit https://github.com/vikranth22446/toren for more information.""",
             formatter_class=argparse.RawDescriptionHelpFormatter,
         )
-        subparsers = parser.add_subparsers(dest="command", help="Available commands")
+        subparsers = self._parser.add_subparsers(dest="command", help="Available commands")
 
         self._add_run_parser(subparsers)
         self._add_status_parser(subparsers)
@@ -43,7 +44,7 @@ Visit https://github.com/vikranth22446/claude_agent_runner for more information.
         self._add_health_parser(subparsers)
         self._add_update_parser(subparsers)
 
-        return parser.parse_args()
+        return self._parser.parse_args()
 
     def _add_run_parser(self, subparsers):
         """Add run command parser"""

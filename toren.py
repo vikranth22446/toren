@@ -49,7 +49,11 @@ class ClaudeAgent:
         """Main execution flow"""
         args = self.parse_args()
 
-        if args.command == "run":
+        if args.command is None:
+            # Show help text when no command is provided
+            self.cli_parser._parser.print_help()
+            sys.exit(0)
+        elif args.command == "run":
             self.run_daemon_mode(args)
         elif args.command == "status":
             self.ui.show_status(args.job_id, args.filter)
@@ -259,7 +263,7 @@ Please review the changes and test as appropriate for your workflow.
             print(f"✅ Job {job_id} started successfully")
             print(f"💡 Monitor with: python3 toren.py status --job-id {job_id}")
             print(f"📋 View logs: python3 toren.py logs {job_id}")
-            print(f"📊 Get summary: python3 toren.py summary --job-id {job_id}")
+            print(f"📊 Get summary: python3 toren.py summary {job_id}")
         else:
             print(f"❌ Failed to start job {job_id}")
             self.job_manager.update_job_status(

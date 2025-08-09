@@ -16,52 +16,52 @@ Autonomous GitHub Issue/Spec Processor that reads specifications and creates pul
 
 ### Basic Usage
 ```bash
-python3 claude_agent.py --base-image python:3.11 --spec task.md --branch feature/fix-issue-123
-python3 claude_agent.py --base-image myproject:dev --issue https://github.com/owner/repo/issues/123 --branch feature/fix-issue-123
-python3 claude_agent.py --base-image ubuntu:22.04 --spec task.md --issue https://github.com/owner/repo/issues/123 --branch feature/fix-issue-123
+python3 toren.py --base-image python:3.11 --spec task.md --branch feature/fix-issue-123
+python3 toren.py --base-image myproject:dev --issue https://github.com/owner/repo/issues/123 --branch feature/fix-issue-123
+python3 toren.py --base-image ubuntu:22.04 --spec task.md --issue https://github.com/owner/repo/issues/123 --branch feature/fix-issue-123
 
 # With custom base branch (defaults to main)
-python3 claude_agent.py --base-image python:3.11 --spec task.md --branch feature/fix-issue-123 --base-branch develop
+python3 toren.py --base-image python:3.11 --spec task.md --branch feature/fix-issue-123 --base-branch develop
 ```
 
 ### Basic Usage (Background Mode - Default)
 ```bash
 # Launch job in background (daemon mode is default)
-python3 claude_agent.py run --base-image python:3.11 --spec task.md --branch feature/fix-issue-123
-python3 claude_agent.py run --base-image myproject:dev --issue https://github.com/owner/repo/issues/123 --branch feature/fix-issue-123
+python3 toren.py run --base-image python:3.11 --spec task.md --branch feature/fix-issue-123
+python3 toren.py run --base-image myproject:dev --issue https://github.com/owner/repo/issues/123 --branch feature/fix-issue-123
 
 # With custom base branch (defaults to main)
-python3 claude_agent.py run --base-image python:3.11 --spec task.md --branch feature/fix-issue-123 --base-branch develop
+python3 toren.py run --base-image python:3.11 --spec task.md --branch feature/fix-issue-123 --base-branch develop
 
 # With custom reviewer
-python3 claude_agent.py run --base-image python:3.11 --spec task.md --branch feature/fix-issue-123 --reviewer @username
+python3 toren.py run --base-image python:3.11 --spec task.md --branch feature/fix-issue-123 --reviewer @username
 ```
 
 ### Dashboard Commands (All in One CLI)
 ```bash
 # Check job status
-python3 claude_agent.py status
-python3 claude_agent.py status --job-id abc123
-python3 claude_agent.py status --filter running
+python3 toren.py status
+python3 toren.py status --job-id abc123
+python3 toren.py status --filter running
 
 # View detailed job info
-python3 claude_agent.py summary abc123
+python3 toren.py summary abc123
 
 # Watch logs in real-time
-python3 claude_agent.py logs abc123 --follow
+python3 toren.py logs abc123 --follow
 
 # Clean up completed jobs
-python3 claude_agent.py cleanup --all
-python3 claude_agent.py cleanup --job-id abc123
+python3 toren.py cleanup --all
+python3 toren.py cleanup --job-id abc123
 
 # Kill running job
-python3 claude_agent.py kill abc123
+python3 toren.py kill abc123
 ```
 
 ### Backward Compatibility
 ```bash
 # Still works (defaults to 'run' command)
-python3 claude_agent.py --base-image python:3.11 --spec task.md --branch feature/fix-issue-123
+python3 toren.py --base-image python:3.11 --spec task.md --branch feature/fix-issue-123
 ```
 
 ### Docker Usage
@@ -112,7 +112,7 @@ docker run \
 
 ## Configuration
 
-Edit `claude_agent.py` to customize:
+Edit `toren.py` to customize:
 - `reviewer_username`: Default reviewer
 - `max_lines`: Maximum lines changed (400)
 - `warn_lines`: Warning threshold (300)

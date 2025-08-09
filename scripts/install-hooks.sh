@@ -17,19 +17,19 @@ HOOKS_DIR="$GIT_DIR/hooks"
 echo "Installing pre-commit security hook..."
 cat > "$HOOKS_DIR/pre-commit" << 'EOF'
 #!/bin/bash
-# Security scan pre-commit hook for Claude Agent
+# Security scan pre-commit hook for Toren AI Agent
 
 echo "🔍 Running security scan on changed files..."
 
 # Get script directory relative to git root
-SCRIPT_DIR="$(git rev-parse --show-toplevel)/claude_agent_runner"
+SCRIPT_DIR="$(git rev-parse --show-toplevel)/toren"
 
 if [ -f "$SCRIPT_DIR/scripts/scan_diff.sh" ]; then
     cd "$SCRIPT_DIR"
     ./scripts/scan_diff.sh --cached
 else
     echo "⚠️  Security scanner not found at $SCRIPT_DIR/scripts/scan_diff.sh"
-    echo "Run from claude_agent_runner directory to install hooks properly"
+    echo "Run from toren directory to install hooks properly"
     exit 1
 fi
 EOF

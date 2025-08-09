@@ -121,4 +121,4 @@ dmypy.json
 *.iws
 *.ipr
 
-.claude_cost_data/
+.ai_cost_data/

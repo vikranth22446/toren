@@ -1,0 +1,27 @@
+{
+  "git": {
+    "base_branch": "main",
+    "default_user": "Claude Agent",
+    "default_email": "claude-agent@anthropic.com"
+  },
+  "ai": {
+    "default_provider": "claude",
+    "timeout_seconds": 3600,
+    "max_retries": 3
+  },
+  "github": {
+    "default_reviewer": "vikranth22446",
+    "pr_template": "Fix: [brief title]",
+    "progress_notifications": true
+  },
+  "container": {
+    "workspace_dir": "/workspace",
+    "docs_dir": "/tmp/claude_docs",
+    "cost_tracking": true
+  },
+  "security": {
+    "enable_scanning": true,
+    "fail_on_security_issues": false,
+    "allowed_executables": ["git", "python3", "pip", "npm", "cargo", "go", "mvn"]
+  }
+}

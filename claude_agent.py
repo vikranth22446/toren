@@ -1012,7 +1012,7 @@ ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
                 gh_config_path = Path.home() / ".config/gh"
                 if gh_config_path.exists():
                     validated_path = self._validate_mount_path(gh_config_path, "GitHub CLI config")
-                    docker_cmd.extend(["-v", f"{validated_path}:/root/.config/gh"])
+                    docker_cmd.extend(["-v", f"{validated_path}:/root/.config/gh_mounted:ro"])
                 
                 # Mount Claude Code configuration for session authentication
                 # Prefer ~/.claude.json for simpler credential handling
@@ -2474,7 +2474,7 @@ Focus on practical implementation concerns for an autonomous AI agent."""
                 gh_config_path = Path.home() / ".config/gh"
                 if gh_config_path.exists():
                     validated_path = self._validate_mount_path(gh_config_path, "GitHub CLI config")
-                    docker_cmd.extend(["-v", f"{validated_path}:/root/.config/gh"])
+                    docker_cmd.extend(["-v", f"{validated_path}:/root/.config/gh_mounted:ro"])
                 
                 # Mount Claude Code configuration for session authentication
                 # Prefer ~/.claude.json for simpler credential handling

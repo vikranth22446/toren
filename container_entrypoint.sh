@@ -40,6 +40,36 @@ if [ -n "$GITHUB_TOKEN" ]; then
     mkdir -p /root
     echo "https://x-access-token:$GITHUB_TOKEN@github.com" > /root/.git-credentials
     echo "✅ GitHub HTTPS authentication configured"
+    
+    # Set up GitHub CLI configuration
+    if [ -d "/root/.config/gh_mounted" ] && [ -f "/root/.config/gh_mounted/config.yml" ]; then
+        echo "🔐 Setting up GitHub CLI configuration from mounted files..."
+        
+        # Copy mounted config to writable location to avoid permission issues
+        mkdir -p /root/.config/gh
+        cp -r /root/.config/gh_mounted/* /root/.config/gh/
+        chmod -R 755 /root/.config/gh
+        
+        echo "✅ GitHub CLI configuration copied from mounted location"
+    else
+        echo "🔧 Setting up GitHub CLI configuration..."
+        mkdir -p /root/.config/gh
+        chmod 755 /root/.config/gh
+        
+        # Create basic gh config.yml with authentication
+        cat > /root/.config/gh/config.yml << 'EOF'
+git_protocol: https
+editor: 
+prompt: enabled
+pager: 
+EOF
+        chmod 644 /root/.config/gh/config.yml
+        echo "✅ GitHub CLI configuration file created"
+    fi
+    
+    # Set up gh authentication using the token
+    echo "$GITHUB_TOKEN" | gh auth login --with-token
+    echo "✅ GitHub CLI authentication configured"
 else
     echo "❌ No GitHub token found in environment"
     echo "❌ Git operations will fail - check token setup"
@@ -221,8 +251,52 @@ COST_MONITOR_PID=$!
 
 # Execute Claude with correct command
 echo "🤖 Starting Claude execution..."
-IS_SANDBOX=1 claude --dangerously-skip-permissions "$CLAUDE_PROMPT"
+
+# Start Claude in background and capture PID
+IS_SANDBOX=1 claude --dangerously-skip-permissions "$CLAUDE_PROMPT" &
+CLAUDE_PID=$!
+
+# Find and tail Claude's log file to stream to Docker logs
+echo "📋 Setting up log streaming..."
+sleep 2  # Give Claude time to create log file
+
+# Find the most recent Claude project log file
+CLAUDE_LOG_FILE=$(find /root/.claude/projects -name "*.jsonl" -type f 2>/dev/null | head -1)
+
+if [ -n "$CLAUDE_LOG_FILE" ] && [ -f "$CLAUDE_LOG_FILE" ]; then
+    echo "📋 Streaming Claude logs from: $CLAUDE_LOG_FILE"
+    
+    # Tail the log file and format it for readability
+    tail -f "$CLAUDE_LOG_FILE" | while IFS= read -r line; do
+        # Extract and format key fields from JSONL for better readability
+        echo "$line" | python3 -c "
+import sys, json
+try:
+    data = json.loads(sys.stdin.read().strip())
+    if 'content' in data:
+        print(f'🤖 Claude: {data[\"content\"]}')
+    elif 'message' in data:
+        print(f'📝 {data[\"message\"]}')
+    else:
+        print(f'📋 {sys.stdin.read().strip()}')
+except:
+    print(f'📋 {sys.stdin.read().strip()}')
+" 2>/dev/null || echo "📋 $line"
+    done &
+    LOG_TAIL_PID=$!
+else
+    echo "⚠️  Could not find Claude log file for streaming"
+    LOG_TAIL_PID=""
+fi
+
+# Wait for Claude to complete
+wait $CLAUDE_PID
 CLAUDE_EXIT_CODE=$?
+
+# Stop log tailing
+if [ -n "$LOG_TAIL_PID" ]; then
+    kill $LOG_TAIL_PID 2>/dev/null || true
+fi
 
 # Stop cost monitoring and get final stats
 echo "📊 Collecting final session statistics..."

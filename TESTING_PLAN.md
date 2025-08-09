@@ -16,10 +16,10 @@
 
 ### 1.2 PR Creation Testing (15 minutes)
 **Tests:**
-- [ ] **Create test branch**: `git checkout -b test-pr-creation`
-- [ ] **Make small change**: `echo "# Test" > test_file.md && git add . && git commit -m "Test commit"`
-- [ ] **Push branch**: `git push -u origin test-pr-creation`
-- [ ] **Test PR creation**: `python github_utils.py create-pr "Test PR" "Testing PR creation functionality" --issue 1 --reviewer vikranth22446`
+- [x] **Create test branch**: `git checkout -b test-pr-creation`
+- [x] **Make small change**: `echo "# Test" > test_file.md && git add . && git commit -m "Test commit"`
+- [x] **Push branch**: `git push -u origin test-pr-creation`
+- [x] **Test PR creation**: `python github_utils.py create-pr "Test PR" "Testing PR creation functionality" --issue 1 --reviewer vikranth22446`
 
 **Expected Results:**
 - PR created successfully with proper template

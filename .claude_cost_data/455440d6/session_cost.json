@@ -1,0 +1,37 @@
+{
+  "session_start": "2025-08-09T06:34:48.497605+00:00",
+  "last_update": "2025-08-09T06:35:20.024380+00:00",
+  "cost": {
+    "type": "result",
+    "subtype": "success",
+    "is_error": false,
+    "duration_ms": 19,
+    "duration_api_ms": 0,
+    "num_turns": 2,
+    "result": "",
+    "session_id": "c2f99319-64b5-4e03-8492-999be6527b23",
+    "total_cost_usd": 0,
+    "usage": {
+      "input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0,
+      "output_tokens": 0,
+      "server_tool_use": {
+        "web_search_requests": 0
+      },
+      "service_tier": "standard"
+    }
+  },
+  "git_stats": {
+    "files_changed": 1,
+    "lines_added": 3,
+    "lines_deleted": 0,
+    "total_lines_changed": 3
+  },
+  "summary": {
+    "total_cost": 0.0,
+    "total_tokens": 0,
+    "lines_changed": 3,
+    "files_changed": 1
+  }
+}

@@ -119,9 +119,6 @@ if [ -d "/root/.claude_mounted" ] && [ -n "$(ls -A /root/.claude_mounted 2>/dev/
     chown -R root:root /root/.claude
     chmod -R 755 /root/.claude
     echo "✅ Claude Code configuration copied to writable location"
-elif [ -f "/run/secrets/anthropic_api_key" ]; then
-    echo "🔐 Loading API key from secure file..."
-    export ANTHROPIC_API_KEY=$(cat /run/secrets/anthropic_api_key)
 elif [ -n "$ANTHROPIC_API_KEY_FILE" ] && [ -f "$ANTHROPIC_API_KEY_FILE" ]; then
     echo "🔐 Loading API key from specified file..."
     export ANTHROPIC_API_KEY=$(cat "$ANTHROPIC_API_KEY_FILE")

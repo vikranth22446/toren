@@ -1,130 +1,152 @@
-# Claude Agent Runner
+# Toren - Multi-AI CLI Agent Runner
 
-Autonomous GitHub Issue/Spec Processor that reads specifications and creates pull requests automatically.
+**Toren** is a production-grade autonomous GitHub agent system that can work with multiple AI CLIs (Claude, Gemini, and more). It processes specifications, executes code changes, and creates pull requests with enterprise security controls.
 
 ## Features
 
-- Read local markdown specifications and/or GitHub issues
-- Execute Claude Code to implement solutions
-- Validate code changes (300-400 line limit)
-- Safety checks for privacy/security concerns
-- Automatic branch creation and PR submission
-- Progress tracking via GitHub comments
-- Auto-tag reviewers when complete
+- 🤖 **Multi-AI Support**: Works with Claude, Gemini, and extensible to other AI CLIs
+- 🐳 **Docker-based Execution**: Secure, isolated environments with custom base images  
+- 🔒 **Enterprise Security**: Input validation, credential management, vulnerability scanning
+- 📊 **Job Management**: Background execution, real-time monitoring, cost tracking
+- 🔗 **GitHub Integration**: Issue processing, PR creation, progress notifications
+- 🏗️ **ML/AI Ready**: GPU support, model caching, custom environments
 
-## Usage
+## Quick Start
+
+### Installation
+
+```bash
+# Clone and install
+git clone <repository_url>
+cd toren
+chmod +x install.sh
+./install.sh
+```
+
+Or install manually:
+```bash
+pip install -e .
+```
 
 ### Basic Usage
-```bash
-python3 toren.py --base-image python:3.11 --spec task.md --branch feature/fix-issue-123
-python3 toren.py --base-image myproject:dev --issue https://github.com/owner/repo/issues/123 --branch feature/fix-issue-123
-python3 toren.py --base-image ubuntu:22.04 --spec task.md --issue https://github.com/owner/repo/issues/123 --branch feature/fix-issue-123
 
-# With custom base branch (defaults to main)
-python3 toren.py --base-image python:3.11 --spec task.md --branch feature/fix-issue-123 --base-branch develop
+```bash
+# Check help
+toren --help
+toren run --help
+
+# Run with Claude (default)
+toren run --base-image python:3.11 --spec task.md --branch fix/bug
+
+# Run with Gemini
+toren run --cli-type gemini --base-image python:3.11 --spec task.md --branch fix/bug
+
+# Process GitHub issue
+toren run --issue https://github.com/user/repo/issues/123 --branch fix/issue-123
+
+# Monitor jobs
+toren status
+toren logs job_id --follow
+toren summary job_id
+
+# Health check
+toren health --docker-image python:3.11 --security
 ```
 
-### Basic Usage (Background Mode - Default)
+### ML/AI Workflows
+
 ```bash
-# Launch job in background (daemon mode is default)
-python3 toren.py run --base-image python:3.11 --spec task.md --branch feature/fix-issue-123
-python3 toren.py run --base-image myproject:dev --issue https://github.com/owner/repo/issues/123 --branch feature/fix-issue-123
-
-# With custom base branch (defaults to main)
-python3 toren.py run --base-image python:3.11 --spec task.md --branch feature/fix-issue-123 --base-branch develop
-
-# With custom reviewer
-python3 toren.py run --base-image python:3.11 --spec task.md --branch feature/fix-issue-123 --reviewer @username
+# GPU + model caching
+toren run --base-image pytorch/pytorch:latest --spec ml_task.md --branch fix/training \
+  --env CUDA_VISIBLE_DEVICES=0 --env HF_HOME=/cache/huggingface \
+  --volume /data/models:/workspace/models --volume /cache:/root/.cache
 ```
 
-### Dashboard Commands (All in One CLI)
-```bash
-# Check job status
-python3 toren.py status
-python3 toren.py status --job-id abc123
-python3 toren.py status --filter running
+## Prerequisites
 
-# View detailed job info
-python3 toren.py summary abc123
-
-# Watch logs in real-time
-python3 toren.py logs abc123 --follow
-
-# Clean up completed jobs
-python3 toren.py cleanup --all
-python3 toren.py cleanup --job-id abc123
-
-# Kill running job
-python3 toren.py kill abc123
-```
-
-### Backward Compatibility
-```bash
-# Still works (defaults to 'run' command)
-python3 toren.py --base-image python:3.11 --spec task.md --branch feature/fix-issue-123
-```
-
-### Docker Usage
-
-Build the container:
-```bash
-docker build -t claude-agent .
-```
-
-Run with credentials:
-```bash
-docker run \
-  -v ~/.gitconfig:/root/.gitconfig \
-  -v ~/.ssh:/root/.ssh \
-  -v ~/.config/gh:/root/.config/gh \
-  -e ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
-  claude-agent \
-  --spec /workspace/task.md --branch feature/fix-issue-123
-```
-
-## Requirements
-
-- Python 3.11+
-- Git configured with push access
-- GitHub CLI (`gh`) authenticated
-- Claude Code CLI installed
-- `ANTHROPIC_API_KEY` environment variable
-
-## Workflow
-
-1. **Input Validation** - Validates spec files, GitHub URLs, branch names
-2. **Safety Check** - Scans for security/privacy concerns
-3. **Branch Creation** - Creates new git branch
-4. **Task Execution** - Runs Claude Code with merged specification
-5. **Change Validation** - Checks line count and change quality
-6. **PR Creation** - Commits, pushes, and creates pull request
-7. **Notification** - Comments on GitHub issue/PR with status updates
-
-## Safety Features
-
-- **Docker-only execution**: All code runs in isolated containers (no local execution)
-- **Base image required**: Must specify `--base-image` for security
-- Blocks execution if privacy/security keywords detected
-- Enforces 300-400 line change limits
-- Tags reviewer for manual review on failures
-- Validates branch names and GitHub URLs
-- Follows existing code style and patterns
+- **Python 3.8+**
+- **Docker** (with access to run containers)
+- **AI CLI credentials**:
+  - Claude: `~/.claude.json` or `ANTHROPIC_API_KEY` environment variable
+  - Gemini: `GEMINI_API_KEY` environment variable
+- **GitHub Token**: `GITHUB_TOKEN` environment variable (for GitHub operations)
 
 ## Configuration
 
-Edit `toren.py` to customize:
-- `reviewer_username`: Default reviewer
-- `max_lines`: Maximum lines changed (400)
-- `warn_lines`: Warning threshold (300)
+### AI CLI Setup
 
----
+**Claude:**
+```bash
+# Option 1: Install Claude CLI and configure
+curl -fsSL https://claude.ai/install.sh | bash
+# Then follow Claude CLI setup
 
-*This is an AI-generated logo*
-
+# Option 2: Set environment variable
+export ANTHROPIC_API_KEY=your_key_here
 ```
-    ╭─╮
-    │C│  Powered by Claude
-    ╰─╯
 
-🤖
+**Gemini:**
+```bash
+# Install Gemini CLI
+npm install -g @google/generative-ai-cli
+
+# Set environment variable  
+export GEMINI_API_KEY=your_key_here
 ```
+
+**GitHub:**
+```bash
+export GITHUB_TOKEN=your_github_token
+```
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `toren run` | Start new AI agent job |
+| `toren status` | Show job status and progress |
+| `toren logs` | Show job logs and output |
+| `toren summary` | Show AI-generated task summary |
+| `toren cleanup` | Clean up completed jobs |
+| `toren kill` | Kill running job immediately |
+| `toren health` | Run system health checks |
+
+## Key Options
+
+- `--cli-type {claude,gemini}`: Choose AI CLI to use
+- `--base-image IMAGE`: Docker base image for execution
+- `--spec FILE`: Markdown specification file
+- `--issue URL`: GitHub issue to process
+- `--branch NAME`: Git branch name to create
+- `--env VAR=VALUE`: Environment variables
+- `--volume HOST:CONTAINER`: Volume mounts
+- `--language {python,rust}`: Project language
+- `--cost-estimate`: Estimate AI API costs
+
+## Security Features
+
+- 🔐 **Input Validation**: Regex patterns, allowlists, length limits
+- 🗂️ **Credential Management**: Read-only file mounting (not environment variables)
+- 🛡️ **Path Security**: Directory allowlisting, traversal protection  
+- 🔍 **Container Security**: Resource cleanup, vulnerability scanning
+- 🔒 **Race Prevention**: File locking for atomic operations
+
+## Architecture
+
+Toren is designed as a generic AI CLI runner with minimal coupling:
+
+- **CLI-Specific**: Command syntax, authentication formats (easily configurable)
+- **Generic Core**: Docker orchestration, Git workflows, security, job management
+- **Extensible**: Can support additional AI CLIs with configuration changes
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Run tests: `python -m pytest tests/`
+5. Submit a pull request
+
+## License
+
+MIT License - see LICENSE file for details.

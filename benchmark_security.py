@@ -4,8 +4,8 @@ Benchmark script for Claude Agent security scanning performance
 """
 
 import os
-import time
 import subprocess
+import time
 from pathlib import Path
 
 # Timeout constants (in seconds)
@@ -46,7 +46,7 @@ def simulate_bandit_scan(files_to_scan=None):
     # Time the scan
     start_time = time.time()
     try:
-        result = subprocess.run(
+        subprocess.run(
             ["bandit", "-ll", "-f", "json"] + existing_files,
             capture_output=True,
             text=True,
@@ -75,7 +75,7 @@ def main():
 
     # Analyze current codebase
     py_files, total_lines = count_python_files()
-    print(f"📊 Codebase Analysis:")
+    print("📊 Codebase Analysis:")
     print(f"   Python files: {py_files}")
     print(f"   Total lines: {total_lines}")
     print()

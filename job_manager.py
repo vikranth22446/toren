@@ -4,24 +4,24 @@ Job Manager for Claude Agent Background Execution
 Handles job state, progress tracking, and dashboard functionality
 """
 
+import fcntl
 import json
-import uuid
+import os
 import subprocess
+import tempfile
 import threading
 import time
-import fcntl
-import tempfile
+import uuid
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional, Any
-import os
-from contextlib import contextmanager
+from typing import Any, Dict, List, Optional
 
 
 class JobManager:
     # Maximum JSON file size (1MB) to prevent DoS
     MAX_JSON_SIZE = 1024 * 1024
-    
+
     # Timeout constants (in seconds)
     DOCKER_INSPECT_TIMEOUT = 15
     DOCKER_STOP_TIMEOUT = 10
@@ -29,7 +29,7 @@ class JobManager:
     DOCKER_RMI_TIMEOUT = 30
     GIT_STATS_TIMEOUT = 30
     PROCESS_WAIT_TIMEOUT = 5
-    
+
     # Required job data keys for validation
     REQUIRED_JOB_KEYS = {
         "job_id",
@@ -156,7 +156,7 @@ class JobManager:
         """Create a new background job"""
         job_id = str(uuid.uuid4())[:8]
 
-        job_data = {
+        job_data: Dict[str, Any] = {
             "job_id": job_id,
             "status": "queued",
             "task_spec": task_spec,
@@ -194,10 +194,13 @@ class JobManager:
 
         return job_id
 
-    def _generate_initial_summary(self, task_spec: str, cli_type: str = "claude") -> str:
+    def _generate_initial_summary(
+        self, task_spec: str, cli_type: str = "claude"
+    ) -> str:
         """Generate AI summary of the task"""
         try:
             import subprocess
+
             from ai_cli_interface import AICliInterface
 
             # Create prompt to generate 5-word title
@@ -230,7 +233,9 @@ Return only the 5-word title, nothing else."""
         except subprocess.TimeoutExpired:
             print("ℹ️ AI summary generation timed out, using fallback")
         except subprocess.CalledProcessError as e:
-            print(f"ℹ️ AI summary generation failed (exit code {e.returncode}), using fallback")
+            print(
+                f"ℹ️ AI summary generation failed (exit code {e.returncode}), using fallback"
+            )
         except OSError as e:
             print(f"ℹ️ Could not execute {cli_type} command: {e}, using fallback")
 
@@ -340,7 +345,9 @@ Return only the 5-word title, nothing else."""
                 return True
 
         except (json.JSONDecodeError, ValueError) as e:
-            print(f"Error updating job cost info {job_id} - data serialization error: {e}")
+            print(
+                f"Error updating job cost info {job_id} - data serialization error: {e}"
+            )
             return False
         except PermissionError as e:
             print(f"Error updating job cost info {job_id} - permission denied: {e}")
@@ -352,9 +359,7 @@ Return only the 5-word title, nothing else."""
     def _extract_and_update_cost_data(self, job_id: str) -> None:
         """Extract cost data from container output and update job"""
         try:
-            cost_data_file = (
-                Path.cwd() / ".ai_cost_data" / job_id / "session_cost.json"
-            )
+            cost_data_file = Path.cwd() / ".ai_cost_data" / job_id / "session_cost.json"
 
             if cost_data_file.exists():
                 with open(cost_data_file, "r") as f:
@@ -392,13 +397,19 @@ Return only the 5-word title, nothing else."""
                 print(f"⚠️  No cost data file found for job {job_id}")
 
         except (json.JSONDecodeError, ValueError) as e:
-            print(f"❌ Error extracting cost data for job {job_id} - invalid data format: {e}")
+            print(
+                f"❌ Error extracting cost data for job {job_id} - invalid data format: {e}"
+            )
         except FileNotFoundError:
-            print(f"❌ Error extracting cost data for job {job_id} - cost file not found")
+            print(
+                f"❌ Error extracting cost data for job {job_id} - cost file not found"
+            )
         except PermissionError:
             print(f"❌ Error extracting cost data for job {job_id} - permission denied")
         except OSError as e:
-            print(f"❌ Error extracting cost data for job {job_id} - file system error: {e}")
+            print(
+                f"❌ Error extracting cost data for job {job_id} - file system error: {e}"
+            )
 
     def _calculate_session_duration(self, session_data: Dict[str, Any]) -> int:
         """Calculate session duration in seconds"""
@@ -512,7 +523,9 @@ Return only the 5-word title, nothing else."""
                 except subprocess.CalledProcessError as e:
                     # Docker command failed
                     self.update_job_status(
-                        job_id, "failed", error_message=f"Docker status check failed: {e.stderr or e}"
+                        job_id,
+                        "failed",
+                        error_message=f"Docker status check failed: {e.stderr or e}",
                     )
                 except subprocess.TimeoutExpired:
                     # Docker command timed out
@@ -714,7 +727,9 @@ Return only the 5-word title, nothing else."""
 
                 except subprocess.CalledProcessError as e:
                     self.update_job_status(
-                        job_id, "failed", error_message=f"Docker monitoring failed: {e.stderr or e}"
+                        job_id,
+                        "failed",
+                        error_message=f"Docker monitoring failed: {e.stderr or e}",
                     )
                 except subprocess.TimeoutExpired:
                     self.update_job_status(
@@ -722,7 +737,9 @@ Return only the 5-word title, nothing else."""
                     )
                 except OSError as e:
                     self.update_job_status(
-                        job_id, "failed", error_message=f"Docker unavailable during monitoring: {e}"
+                        job_id,
+                        "failed",
+                        error_message=f"Docker unavailable during monitoring: {e}",
                     )
                     break
 

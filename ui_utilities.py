@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 
-import sys
-import subprocess
 import re
-from typing import Optional, Dict, List, Any
+import subprocess
+import sys
 from datetime import datetime, timezone
+from typing import Dict, List, Optional
 
 
 class UIUtilities:
@@ -52,7 +52,7 @@ class UIUtilities:
         reset = "\033[0m"
         return colors.get(status, "") + status + reset
 
-    def show_status(self, job_id: str = None, status_filter: str = None) -> None:
+    def show_status(self, job_id: Optional[str] = None, status_filter: Optional[str] = None) -> None:
         if job_id:
             job = self.job_manager.get_job(job_id)
             if not job:
@@ -110,7 +110,7 @@ class UIUtilities:
         if len(jobs) > len(display_jobs):
             print(f"\nShowing {len(display_jobs)} of {len(jobs)} jobs (most recent)")
 
-        status_counts = {}
+        status_counts: Dict[str, int] = {}
         for job in jobs:
             status = job["status"]
             status_counts[status] = status_counts.get(status, 0) + 1
@@ -154,7 +154,7 @@ class UIUtilities:
             cost_info.get("total_cost", 0) > 0
             or git_stats.get("total_lines_changed", 0) > 0
         ):
-            print(f"\n💰 Session Metrics:")
+            print("\n💰 Session Metrics:")
             if cost_info.get("total_cost", 0) > 0:
                 print(f"  Cost: ${cost_info.get('total_cost', 0):.4f}")
                 total_tokens = cost_info.get("input_tokens", 0) + cost_info.get(
@@ -170,16 +170,16 @@ class UIUtilities:
                 )
                 print(f"  Files modified: {git_stats.get('files_changed', 0)}")
 
-        print(f"\n📋 Task Summary:")
+        print("\n📋 Task Summary:")
         print(f"  {job['ai_summary']}")
 
         if job.get("progress_log"):
-            print(f"\n📈 Progress Log:")
+            print("\n📈 Progress Log:")
             for entry in job["progress_log"][-5:]:
                 timestamp = self.format_timestamp(entry["timestamp"])
                 print(f"  [{timestamp}] {entry['message']}")
 
-        print(f"\n📄 Task Specification:")
+        print("\n📄 Task Specification:")
         task_lines = job["task_spec"].split("\n")
         for line in task_lines[:10]:
             print(f"  {line}")
@@ -198,7 +198,7 @@ class UIUtilities:
         print(job["ai_summary"])
 
         if job.get("progress_log"):
-            print(f"\n🔄 Latest Progress:")
+            print("\n🔄 Latest Progress:")
             latest = job["progress_log"][-1]
             print(
                 f"  [{self.format_timestamp(latest['timestamp'])}] {latest['message']}"
@@ -226,7 +226,7 @@ class UIUtilities:
             print(logs if logs else "No logs available")
 
     def cleanup_jobs(
-        self, job_id: str = None, cleanup_all: bool = False, force: bool = False
+        self, job_id: Optional[str] = None, cleanup_all: bool = False, force: bool = False
     ) -> None:
         if cleanup_all:
             count = self.job_manager.cleanup_completed_jobs()
@@ -322,5 +322,5 @@ class UIUtilities:
             print(f"Spec File: {spec_path}")
         print("-" * 60)
 
-        print(f"✅ Health Check PASSED (basic validation)")
+        print("✅ Health Check PASSED (basic validation)")
         print("🚀 System is ready to run Claude Agent jobs!")

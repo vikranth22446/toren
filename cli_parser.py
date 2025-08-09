@@ -4,16 +4,16 @@ CLI Parser - Handles command line argument parsing for Claude Agent
 """
 
 import argparse
-from typing import Dict, Any
+from typing import Any, Dict
 
 
 class CLIParser:
     """Handles command line argument parsing and validation"""
-    
+
     def __init__(self, reviewer_username: str, config: Dict[str, Any]):
         self.reviewer_username = reviewer_username
         self.config = config
-    
+
     def parse_args(self) -> argparse.Namespace:
         """Parse command line arguments"""
         parser = argparse.ArgumentParser(
@@ -24,9 +24,11 @@ class CLIParser:
   Check status:   toren status
   View logs:      toren logs abc123 --follow
   Clean up:       toren cleanup --all
-  
-  ML/AI with GPU:  toren run --base-image pytorch/pytorch:latest --spec ml_task.md --branch fix/training --env CUDA_VISIBLE_DEVICES=0 --volume /data:/workspace/data
-  
+
+  ML/AI with GPU:  toren run --base-image pytorch/pytorch:latest \\
+                   --spec ml_task.md --branch fix/training \\
+                   --env CUDA_VISIBLE_DEVICES=0 --volume /data:/workspace/data
+
 Visit https://github.com/vikranth22446/claude_agent_runner for more information.""",
             formatter_class=argparse.RawDescriptionHelpFormatter,
         )
@@ -48,17 +50,24 @@ Visit https://github.com/vikranth22446/claude_agent_runner for more information.
         run_parser = subparsers.add_parser(
             "run",
             help="Start new agent job",
-            description="Launch an AI agent to work on GitHub issues or custom specifications.",
+            description=(
+                "Launch an AI agent to work on GitHub issues or custom specifications."
+            ),
             epilog="""Examples:
   %(prog)s --base-image python:3.11 --spec task.md --branch fix/auth-bug
-  %(prog)s --base-image myproject:dev --issue https://github.com/user/repo/issues/123 --branch fix/issue-123
-  %(prog)s --base-image ubuntu:22.04 --spec task.md --branch feature/new-api --base-branch develop
-  
+  %(prog)s --base-image python:3.11 --short "Fix login bug" \\
+           --branch fix/login-issue
+  %(prog)s --base-image myproject:dev \\
+           --issue https://github.com/user/repo/issues/123 \\
+           --branch fix/issue-123
+  %(prog)s --base-image ubuntu:22.04 --spec task.md \\
+           --branch feature/new-api --base-branch develop
+
   # ML/AI workflows with GPU and model caching:
   %(prog)s --base-image pytorch/pytorch:latest --spec ml_task.md --branch fix/training \\
            --env CUDA_VISIBLE_DEVICES=0 --env HF_HOME=/cache/huggingface \\
            --volume /data/models:/workspace/models --volume /cache/huggingface:/root/.cache/huggingface
-  
+
   # Custom environment with secrets:
   %(prog)s --base-image python:3.11 --spec api_task.md --branch feature/api \\
            --env API_KEY_PATH=/secrets/api.key --volume /host/secrets:/secrets:ro""",
@@ -66,6 +75,11 @@ Visit https://github.com/vikranth22446/claude_agent_runner for more information.
         )
         run_parser.add_argument(
             "--spec", type=str, help="Path to markdown spec file (e.g., task.md)"
+        )
+        run_parser.add_argument(
+            "--short",
+            type=str,
+            help="Short task description (alternative to --spec file)",
         )
         run_parser.add_argument(
             "--issue",
@@ -107,7 +121,7 @@ Visit https://github.com/vikranth22446/claude_agent_runner for more information.
             help="Maximum lines changed allowed (default: 400)",
         )
         run_parser.add_argument(
-            "--warn-lines", 
+            "--warn-lines",
             type=int,
             default=300,
             help="Warning threshold for lines changed (default: 300)",
@@ -119,7 +133,7 @@ Visit https://github.com/vikranth22446/claude_agent_runner for more information.
         )
         run_parser.add_argument(
             "--volume",
-            action="append", 
+            action="append",
             help="Additional volume mounts (e.g., --volume /host/models:/container/models --volume /cache:/root/.cache)",
         )
         run_parser.add_argument(
@@ -235,7 +249,7 @@ Visit https://github.com/vikranth22446/claude_agent_runner for more information.
         kill_parser.add_argument(
             "job_id", metavar="JOB_ID", help="Job ID to kill (e.g., abc123)"
         )
-        
+
     def _add_health_parser(self, subparsers):
         """Add health command parser"""
         health_parser = subparsers.add_parser(
@@ -250,22 +264,23 @@ Visit https://github.com/vikranth22446/claude_agent_runner for more information.
             formatter_class=argparse.RawDescriptionHelpFormatter,
         )
         health_parser.add_argument(
-            "--docker-image", type=str, required=True,
-            help="Docker image to health check (e.g., python:3.11, myproject:dev)"
+            "--docker-image",
+            type=str,
+            required=True,
+            help="Docker image to health check (e.g., python:3.11, myproject:dev)",
         )
         health_parser.add_argument(
-            "--spec", type=str,
-            help="Optional spec file to validate for clarity"
+            "--spec", type=str, help="Optional spec file to validate for clarity"
         )
         health_parser.add_argument(
-            "--ai", 
+            "--ai",
             action="store_true",
-            help="Use AI agent to analyze spec quality and provide detailed feedback"
+            help="Use AI agent to analyze spec quality and provide detailed feedback",
         )
         health_parser.add_argument(
             "--security",
-            action="store_true", 
-            help="Run Docker security vulnerability scan using Trivy"
+            action="store_true",
+            help="Run Docker security vulnerability scan using Trivy",
         )
         health_parser.add_argument(
             "--language",
@@ -273,7 +288,7 @@ Visit https://github.com/vikranth22446/claude_agent_runner for more information.
             default="python",
             help="Project language for toolchain validation (default: python)",
         )
-        
+
     def _add_update_parser(self, subparsers):
         """Add update-base-image command parser"""
         update_parser = subparsers.add_parser(

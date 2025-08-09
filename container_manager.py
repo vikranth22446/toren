@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 
+import fcntl
+import hashlib
 import os
 import subprocess
 import tempfile
-import hashlib
-import fcntl
-from pathlib import Path
 from contextlib import contextmanager
-from typing import Dict, List, Optional, Any
+from pathlib import Path
+from typing import List, Optional
 
 
 class ContainerManager:
     # Timeout constants (in seconds)
     DOCKER_BUILD_TIMEOUT = 300  # 5 minutes for Docker builds
-    
+
     def __init__(self, validator=None):
         self.validator = validator
 
@@ -21,18 +21,18 @@ class ContainerManager:
         """Basic safety check for environment variables when no validator is available"""
         if not env_var or "=" not in env_var:
             return False
-        
+
         # Check for command injection patterns
-        dangerous_patterns = [';', '`', '$', '\n', '$(', '${', '|', '&', '\\']
+        dangerous_patterns = [";", "`", "$", "\n", "$(", "${", "|", "&", "\\"]
         return not any(pattern in env_var for pattern in dangerous_patterns)
 
     def _is_safe_input(self, input_str: str) -> bool:
         """Basic safety check for general inputs"""
         if not input_str:
             return False
-        
+
         # No dangerous characters that could break shell/docker commands
-        dangerous_chars = [';', '`', '$', '\n', '\r', '|', '&', '>', '<']
+        dangerous_chars = [";", "`", "$", "\n", "\r", "|", "&", ">", "<"]
         return not any(char in input_str for char in dangerous_chars)
 
     def _get_cli_install_section(self, cli_type: str) -> str:
@@ -48,7 +48,9 @@ class ContainerManager:
     rm -f /root/.claude.json /root/.claude/settings.json 2>/dev/null || true && \\
     echo "Claude CLI installed - default config removed to preserve user mounts\""""
 
-    def generate_agent_dockerfile(self, base_image: str, cli_type: str = "claude") -> str:
+    def generate_agent_dockerfile(
+        self, base_image: str, cli_type: str = "claude"
+    ) -> str:
         return f"""FROM {base_image}
 
 # Update package manager and install basic tools
@@ -176,8 +178,10 @@ ENTRYPOINT ["/usr/local/entrypoint.sh"]
                 # Try current directory first, then fall back to package bundled version
                 security_reqs_path = Path.cwd() / "security-requirements.txt"
                 if not security_reqs_path.exists():
-                    security_reqs_path = Path(__file__).parent / "security-requirements.txt"
-                
+                    security_reqs_path = (
+                        Path(__file__).parent / "security-requirements.txt"
+                    )
+
                 if security_reqs_path.exists():
                     subprocess.run(
                         [
@@ -206,7 +210,11 @@ ENTRYPOINT ["/usr/local/entrypoint.sh"]
                     if entrypoint_path.exists():
                         (Path(temp_dir) / "container").mkdir()
                         subprocess.run(
-                            ["cp", str(entrypoint_path), str(Path(temp_dir) / "container" / "entrypoint.sh")],
+                            [
+                                "cp",
+                                str(entrypoint_path),
+                                str(Path(temp_dir) / "container" / "entrypoint.sh"),
+                            ],
                             check=True,
                         )
 
@@ -214,7 +222,11 @@ ENTRYPOINT ["/usr/local/entrypoint.sh"]
                 github_utils_path = Path(__file__).parent / "github_utils.py"
                 if github_utils_path.exists():
                     subprocess.run(
-                        ["cp", str(github_utils_path), str(Path(temp_dir) / "github_utils.py")],
+                        [
+                            "cp",
+                            str(github_utils_path),
+                            str(Path(temp_dir) / "github_utils.py"),
+                        ],
                         check=True,
                     )
 
@@ -263,7 +275,7 @@ ENTRYPOINT ["/usr/local/entrypoint.sh"]
 
         # Track temp files for cleanup after container starts
         temp_files = []
-        
+
         if github_token:
             token_file = self._create_temp_credential_file(github_token, ".token")
             temp_files.append(token_file)
@@ -322,7 +334,9 @@ ENTRYPOINT ["/usr/local/entrypoint.sh"]
                     validated_path = self.validator.validate_mount_path(
                         gemini_config_path, "Gemini config"
                     )
-                    docker_cmd.extend(["-v", f"{validated_path}:/root/.config/gemini:ro"])
+                    docker_cmd.extend(
+                        ["-v", f"{validated_path}:/root/.config/gemini:ro"]
+                    )
                 except ValueError as e:
                     print(f"⚠️  Warning: Skipping Gemini config: {e}")
 
@@ -369,7 +383,7 @@ ENTRYPOINT ["/usr/local/entrypoint.sh"]
                         if self._is_safe_env_var(env):
                             docker_cmd.extend(["-e", env])
                         else:
-                            print(f"⚠️  Warning: Skipping unsafe environment variable")
+                            print("⚠️  Warning: Skipping unsafe environment variable")
                 except ValueError as e:
                     print(f"⚠️  Warning: Skipping invalid environment variable: {e}")
 
@@ -377,15 +391,23 @@ ENTRYPOINT ["/usr/local/entrypoint.sh"]
         try:
             if self.validator:
                 validated_image = self.validator.sanitize_docker_image(agent_image)
-                validated_branch = self.validator.sanitize_branch_name(branch_name) 
+                validated_branch = self.validator.sanitize_branch_name(branch_name)
                 validated_task_spec = self.validator.validate_task_spec(task_spec)
-                docker_cmd.extend([validated_image, validated_branch, validated_task_spec])
+                docker_cmd.extend(
+                    [validated_image, validated_branch, validated_task_spec]
+                )
             else:
                 # Basic fallback validation
-                if self._is_safe_input(agent_image) and self._is_safe_input(branch_name) and len(task_spec) < 50000:
+                if (
+                    self._is_safe_input(agent_image)
+                    and self._is_safe_input(branch_name)
+                    and len(task_spec) < 50000
+                ):
                     docker_cmd.extend([agent_image, branch_name, task_spec])
                 else:
-                    raise ValueError("Input validation failed - unsafe parameters detected")
+                    raise ValueError(
+                        "Input validation failed - unsafe parameters detected"
+                    )
         except ValueError as e:
             print(f"❌ Input validation failed: {e}")
             raise

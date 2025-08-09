@@ -1,17 +1,16 @@
 #!/usr/bin/env python3
 
-import os
 import json
+import os
 import re
 import subprocess
-from typing import Optional, Dict, Any
-from pathlib import Path
+from typing import Any, Dict, Optional
 
 
 class AICliInterface:
     # Timeout constants (in seconds)
     CLI_COMMAND_TIMEOUT = 30  # For Claude CLI API calls
-    
+
     def __init__(self, cli_type: str = "claude"):
         self.cli_type = cli_type
         self.cli_configs = {
@@ -26,7 +25,7 @@ class AICliInterface:
                 "api_key_env": "GEMINI_API_KEY",
                 "model": os.environ.get("GEMINI_MODEL", "gemini-2.5-flash"),
                 "print_flag": "-p",
-            }
+            },
         }
         self.config = self.cli_configs.get(cli_type, self.cli_configs["claude"])
 
@@ -61,7 +60,8 @@ class AICliInterface:
         try:
             print("💰 Asking Claude to estimate task cost...")
 
-            estimation_prompt = f"""Analyze this task specification and estimate the Claude API cost to complete it:
+            estimation_prompt = f"""Analyze this task specification and estimate the \
+Claude API cost to complete it:
 
 TASK SPECIFICATION:
 {task_content}
@@ -167,21 +167,152 @@ Respond with a JSON object in this format:
         print(f"🔧 Language: {estimate.get('language', 'unknown')}")
 
         if "cost_factors" in estimate and estimate["cost_factors"]:
-            print(f"\n📋 **Cost Factors:**")
+            print("\n📋 **Cost Factors:**")
             for factor in estimate["cost_factors"]:
                 print(f"  • {factor}")
 
         if "cost_reduction_tips" in estimate and estimate["cost_reduction_tips"]:
-            print(f"\n💡 **Cost Reduction Tips:**")
+            print("\n💡 **Cost Reduction Tips:**")
             for tip in estimate["cost_reduction_tips"]:
                 print(f"  • {tip}")
 
         if "raw_response" in estimate:
-            print(f"\n🔍 **Raw Response Preview:**")
+            print("\n🔍 **Raw Response Preview:**")
             print(
                 estimate["raw_response"][:300] + "..."
                 if len(estimate["raw_response"]) > 300
                 else estimate["raw_response"]
             )
+
+        print()
+
+    def check_short_description_quality(self, short_description: str) -> Dict[str, Any]:
+        """
+        Check if a short description is clear and actionable enough for task execution.
+        Returns quality assessment with clarity score and recommendations.
+        """
+        try:
+            print("🔍 Checking description quality...")
+
+            quality_prompt = f"""Analyze this short task description for clarity and actionability:
+
+TASK DESCRIPTION:
+{short_description}
+
+Please assess if this description is clear enough for an AI agent to \
+understand and execute the task. Consider:
+
+1. Is the goal/objective clear?
+2. Are the requirements specific enough?
+3. Is the scope well-defined?
+4. Are there enough actionable details?
+5. Are there any ambiguities that could lead to wrong implementation?
+
+Respond with a JSON object in this format:
+{{
+    "is_clear": true/false,
+    "clarity_score": 1-10,
+    "issues": ["list of specific issues if any"],
+    "recommendations": ["suggestions to improve clarity"],
+    "assessment": "brief overall assessment"
+}}
+
+Be strict - only mark as clear (true) if the description provides \
+enough detail for confident implementation."""
+
+            result = subprocess.run(
+                [self.config["command"], self.config["print_flag"], quality_prompt],
+                capture_output=True,
+                text=True,
+                timeout=self.CLI_COMMAND_TIMEOUT,
+            )
+
+            if result.returncode == 0:
+                output = result.stdout.strip()
+
+                json_match = re.search(r"\{[^}]+\}", output, re.DOTALL)
+                if json_match:
+                    json_str = json_match.group(0)
+                    quality_data = json.loads(json_str)
+                    quality_data["raw_response"] = output
+                    return quality_data
+                else:
+                    # Fallback if JSON parsing fails
+                    return {
+                        "is_clear": False,
+                        "clarity_score": 3,
+                        "issues": ["Could not parse quality assessment"],
+                        "recommendations": ["Try providing more specific details"],
+                        "assessment": "Assessment failed - assuming unclear",
+                        "raw_response": output,
+                    }
+            else:
+                print(f"⚠️  Warning: Quality check failed: {result.stderr}")
+                return {
+                    "is_clear": False,
+                    "clarity_score": 3,
+                    "issues": ["Quality check service unavailable"],
+                    "recommendations": ["Provide more detailed specification"],
+                    "assessment": "Could not assess quality",
+                }
+
+        except subprocess.TimeoutExpired:
+            print("⚠️  Warning: Quality check timed out")
+            return {
+                "is_clear": False,
+                "clarity_score": 3,
+                "issues": ["Quality check timed out"],
+                "recommendations": ["Try with a more detailed specification"],
+                "assessment": "Assessment timeout",
+            }
+        except Exception as e:
+            print(f"⚠️  Warning: Quality check error: {e}")
+            return {
+                "is_clear": False,
+                "clarity_score": 3,
+                "issues": [f"Error during assessment: {str(e)}"],
+                "recommendations": ["Provide more detailed specification"],
+                "assessment": "Assessment error",
+            }
+
+    def print_quality_assessment(self, quality: Dict[str, Any]) -> None:
+        """Print formatted quality assessment results"""
+        print("\n🔍 **Task Description Quality Assessment**")
+        print("-" * 50)
+
+        if "clarity_score" in quality:
+            score = quality["clarity_score"]
+            if score >= 8:
+                score_emoji = "🟢"
+                score_desc = "Excellent"
+            elif score >= 6:
+                score_emoji = "🟡"
+                score_desc = "Good"
+            elif score >= 4:
+                score_emoji = "🟠"
+                score_desc = "Fair"
+            else:
+                score_emoji = "🔴"
+                score_desc = "Poor"
+
+            print(f"{score_emoji} Clarity Score: {score}/10 ({score_desc})")
+
+        if "is_clear" in quality:
+            clear_emoji = "✅" if quality["is_clear"] else "❌"
+            clear_status = "Clear" if quality["is_clear"] else "Unclear"
+            print(f"{clear_emoji} Overall Assessment: {clear_status}")
+
+        if "assessment" in quality:
+            print(f"📝 Summary: {quality['assessment']}")
+
+        if "issues" in quality and quality["issues"]:
+            print("\n⚠️  **Issues Found:**")
+            for issue in quality["issues"]:
+                print(f"  • {issue}")
+
+        if "recommendations" in quality and quality["recommendations"]:
+            print("\n💡 **Recommendations:**")
+            for rec in quality["recommendations"]:
+                print(f"  • {rec}")
 
         print()

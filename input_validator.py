@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
-import re
 import argparse
+import re
 from pathlib import Path
 from typing import List
 
@@ -224,55 +224,61 @@ class InputValidator:
         """Validate environment variable is safe for Docker execution"""
         if not env_var:
             raise ValueError("Environment variable cannot be empty")
-            
+
         if "=" not in env_var:
             raise ValueError("Environment variable must be in KEY=VALUE format")
-        
+
         key, value = env_var.split("=", 1)
-        
+
         # Validate key (environment variable name)
         if not key:
             raise ValueError("Environment variable name cannot be empty")
-            
-        if not re.match(r'^[A-Z_][A-Z0-9_]*$', key):
+
+        if not re.match(r"^[A-Z_][A-Z0-9_]*$", key):
             raise ValueError(
                 f"Invalid environment variable name: {key}. "
                 "Must start with letter/underscore and contain only uppercase letters, numbers, underscores."
             )
-        
+
         # Validate value - no dangerous characters
-        dangerous_chars = [';', '`', '$', '(', ')', '\n', '\r', '\\', '|', '&']
+        dangerous_chars = [";", "`", "$", "(", ")", "\n", "\r", "\\", "|", "&"]
         found_dangerous = [char for char in dangerous_chars if char in value]
         if found_dangerous:
             raise ValueError(
                 f"Environment variable value contains dangerous characters: {', '.join(found_dangerous)}"
             )
-        
+
         # Length limits to prevent DoS
         if len(key) > 100:
-            raise ValueError(f"Environment variable name too long: {len(key)} chars (max: 100)")
-            
+            raise ValueError(
+                f"Environment variable name too long: {len(key)} chars (max: 100)"
+            )
+
         if len(value) > 1000:
-            raise ValueError(f"Environment variable value too long: {len(value)} chars (max: 1000)")
-        
+            raise ValueError(
+                f"Environment variable value too long: {len(value)} chars (max: 1000)"
+            )
+
         # No control characters
-        if any(ord(char) < 32 and char not in ['\t'] for char in value):
+        if any(ord(char) < 32 and char not in ["\t"] for char in value):
             raise ValueError("Environment variable value contains control characters")
-            
+
         return env_var
 
     def validate_task_spec(self, task_spec: str) -> str:
         """Validate task specification content"""
         if not task_spec:
             raise ValueError("Task specification cannot be empty")
-            
+
         if len(task_spec) > 50000:  # 50KB limit
-            raise ValueError(f"Task specification too large: {len(task_spec)} chars (max: 50000)")
-            
+            raise ValueError(
+                f"Task specification too large: {len(task_spec)} chars (max: 50000)"
+            )
+
         # Check for binary/non-text content
         try:
-            task_spec.encode('utf-8')
+            task_spec.encode("utf-8")
         except UnicodeError:
             raise ValueError("Task specification contains invalid characters")
-            
+
         return task_spec

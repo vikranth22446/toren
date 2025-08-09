@@ -5,22 +5,23 @@ Provides simple CLI interface for GitHub API interactions
 """
 
 import argparse
-import subprocess
 import json
-import sys
 import os
-from typing import Optional, Dict, Any, Tuple, List
+import subprocess
+import sys
+from typing import Any, Dict, List, Optional
+
 from message_templates import MessageTemplates
 
 
 class GitHubError(Exception):
     """Base exception for GitHub operations"""
-    pass
 
 
 class GitHubAPIError(GitHubError):
     """GitHub API call failed"""
-    def __init__(self, message: str, command: List[str] = None, exit_code: int = None):
+
+    def __init__(self, message: str, command: Optional[List[str]] = None, exit_code: Optional[int] = None):
         super().__init__(message)
         self.command = command
         self.exit_code = exit_code
@@ -28,12 +29,10 @@ class GitHubAPIError(GitHubError):
 
 class GitHubDataError(GitHubError):
     """GitHub data parsing/validation failed"""
-    pass
 
 
 class GitHubAuthError(GitHubError):
     """GitHub authentication failed"""
-    pass
 
 
 class GitHubUtils:
@@ -49,16 +48,25 @@ class GitHubUtils:
             )
             return result.stdout.strip()
         except subprocess.CalledProcessError as e:
-            if "authentication" in e.stderr.lower() or "unauthorized" in e.stderr.lower():
-                raise GitHubAuthError(MessageTemplates.GITHUB_AUTH_FAILED.format(error=e.stderr.strip()))
-            
-            if e.returncode == 4:  
-                raise GitHubAPIError(MessageTemplates.GITHUB_RESOURCE_NOT_FOUND, command=full_cmd, exit_code=e.returncode)
-            
+            if (
+                "authentication" in e.stderr.lower()
+                or "unauthorized" in e.stderr.lower()
+            ):
+                raise GitHubAuthError(
+                    MessageTemplates.GITHUB_AUTH_FAILED.format(error=e.stderr.strip())
+                )
+
+            if e.returncode == 4:
+                raise GitHubAPIError(
+                    MessageTemplates.GITHUB_RESOURCE_NOT_FOUND,
+                    command=full_cmd,
+                    exit_code=e.returncode,
+                )
+
             raise GitHubAPIError(
-                f"GitHub CLI command failed: {e.stderr.strip()}", 
-                command=full_cmd, 
-                exit_code=e.returncode
+                f"GitHub CLI command failed: {e.stderr.strip()}",
+                command=full_cmd,
+                exit_code=e.returncode,
             )
 
     def comment_issue(self, issue_number: str, message: str) -> bool:
@@ -68,7 +76,11 @@ class GitHubUtils:
             print(MessageTemplates.github_comment_success("issue", issue_number))
             return True
         except GitHubError as e:
-            print(MessageTemplates.github_error("api", f"Failed to comment on issue #{issue_number}: {e}"))
+            print(
+                MessageTemplates.github_error(
+                    "api", f"Failed to comment on issue #{issue_number}: {e}"
+                )
+            )
             return False
 
     def comment_pr(self, pr_number: str, message: str) -> bool:
@@ -78,7 +90,11 @@ class GitHubUtils:
             print(MessageTemplates.github_comment_success("PR", pr_number))
             return True
         except GitHubError as e:
-            print(MessageTemplates.github_error("api", f"Failed to comment on PR #{pr_number}: {e}"))
+            print(
+                MessageTemplates.github_error(
+                    "api", f"Failed to comment on PR #{pr_number}: {e}"
+                )
+            )
             return False
 
     def get_issue(self, issue_number: str) -> Optional[Dict[str, Any]]:
@@ -91,19 +107,29 @@ class GitHubUtils:
         except GitHubError:
             return None
         except json.JSONDecodeError as e:
-            raise GitHubDataError(MessageTemplates.ISSUE_DATA_PARSE_ERROR.format(error=str(e)))
+            raise GitHubDataError(
+                MessageTemplates.ISSUE_DATA_PARSE_ERROR.format(error=str(e))
+            )
 
     def get_pr(self, pr_number: str) -> Optional[Dict[str, Any]]:
         """Get PR details"""
         try:
             output = self.run_gh_command(
-                ["pr", "view", pr_number, "--json", "title,body,number,state,headRefName"]
+                [
+                    "pr",
+                    "view",
+                    pr_number,
+                    "--json",
+                    "title,body,number,state,headRefName",
+                ]
             )
             return json.loads(output)
         except GitHubError:
             return None
         except json.JSONDecodeError as e:
-            raise GitHubDataError(MessageTemplates.PR_DATA_PARSE_ERROR.format(error=str(e)))
+            raise GitHubDataError(
+                MessageTemplates.PR_DATA_PARSE_ERROR.format(error=str(e))
+            )
 
     def get_pr_comments(self, pr_number: str) -> List[Dict[str, Any]]:
         """Get PR comments, filtered for @claude mentions"""
@@ -145,7 +171,7 @@ class GitHubUtils:
             pr_data.get("title", "Unknown"),
             pr_data.get("state", "unknown"),
             pr_data.get("headRefName", "unknown"),
-            pr_data.get("body", "No description available")
+            pr_data.get("body", "No description available"),
         )
 
         if comments:
@@ -197,7 +223,9 @@ class GitHubUtils:
         """Post completion notification with cost information"""
         reviewer_tag = reviewer or self.default_reviewer
         cost_info_str = self._get_cost_info_for_comment()
-        completion_msg = MessageTemplates.completion_notification(reviewer_tag, summary, cost_info_str)
+        completion_msg = MessageTemplates.completion_notification(
+            reviewer_tag, summary, cost_info_str
+        )
         return self.update_status(completion_msg, issue_number)
 
     def _get_cost_info_for_comment(self) -> str:
@@ -296,7 +324,9 @@ class GitHubUtils:
                 issue_num = issue_number.replace("#", "")
             issue_ref = f"\nCloses #{issue_num}"
 
-        pr_body = MessageTemplates.pr_body(summary, reviewer_name, cost_info_str, issue_ref)
+        pr_body = MessageTemplates.pr_body(
+            summary, reviewer_name, cost_info_str, issue_ref
+        )
 
         try:
             output = self.run_gh_command(

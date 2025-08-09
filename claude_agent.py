@@ -434,6 +434,23 @@ Visit https://github.com/anthropics/claude-code for more information.""",
             default="python",
             help="Project language for toolchain validation (default: python)",
         )
+        
+        # Update base image command
+        update_parser = subparsers.add_parser(
+            "update-base-image",
+            help="Build/update a Docker base image",
+            description="Build or update a Docker base image using 'docker build -t <image> .'",
+            epilog="""Examples:
+  %(prog)s --image myproject:dev        # Build image 'myproject:dev' from current directory
+  %(prog)s --image python-custom:latest # Build image 'python-custom:latest' from current directory""",
+            formatter_class=argparse.RawDescriptionHelpFormatter,
+        )
+        update_parser.add_argument(
+            "--image",
+            type=str,
+            help="Docker image name to build (e.g., myproject:dev, python-custom:latest). Default from config.json.",
+            default=self.config.get("default_base_image"),
+        )
 
         args = parser.parse_args()
 
@@ -1374,6 +1391,11 @@ Please review the changes and test as appropriate for your workflow.
             self.kill_job(args.job_id)
         elif args.command == "health":
             self.run_health_check(args.docker_image, args.spec, args.ai, args.security, args.language)
+        elif args.command == "update-base-image":
+            if not args.image:
+                print("❌ Error: --image is required for update-base-image command")
+                sys.exit(1)
+            self.update_base_image(args.image)
         else:
             print("❌ Unknown command")
             sys.exit(1)
@@ -1847,6 +1869,45 @@ Ready for review! 🎉"""
         else:
             self.job_manager.update_job_status(job_id, "cancelled")
             print(f"✅ Cancelled job {job_id}")
+
+    def update_base_image(self, image_name: str) -> None:
+        """Build or update a Docker base image"""
+        try:
+            # Validate image name
+            image_name = self._sanitize_docker_image(image_name)
+        except ValueError as e:
+            print(f"❌ Error: {e}")
+            sys.exit(1)
+        
+        print(f"🔨 Building Docker image: {image_name}")
+        
+        try:
+            # Run docker build command
+            result = subprocess.run(
+                ["docker", "build", "-t", image_name, "."],
+                capture_output=True,
+                text=True,
+                check=False
+            )
+            
+            if result.returncode == 0:
+                print(f"✅ Successfully built image: {image_name}")
+                if result.stdout:
+                    print("\n📦 Build output:")
+                    print(result.stdout)
+            else:
+                print(f"❌ Failed to build image: {image_name}")
+                if result.stderr:
+                    print("\n🚫 Build errors:")
+                    print(result.stderr)
+                sys.exit(1)
+                
+        except subprocess.CalledProcessError as e:
+            print(f"❌ Docker build failed: {e}")
+            sys.exit(1)
+        except FileNotFoundError:
+            print("❌ Error: Docker not found. Please install Docker and ensure it's in your PATH.")
+            sys.exit(1)
 
     def run_health_check(self, docker_image: str, spec_path: Optional[str] = None, use_ai: bool = False, run_security: bool = False, language: str = "python") -> None:
         """Run comprehensive health checks on system and Docker image"""

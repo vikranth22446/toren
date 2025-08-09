@@ -1,0 +1,10 @@
+#!/bin/bash
+
+echo "Running quality checks..."
+
+if ! ./scripts/quality-check.sh; then
+    echo "❌ Quality checks failed. Fix issues or commit with --no-verify"
+    exit 1
+fi
+
+echo "✅ Pre-commit checks passed"

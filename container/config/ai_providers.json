@@ -1,0 +1,32 @@
+{
+  "claude": {
+    "command": "claude",
+    "args": ["--dangerously-skip-permissions"],
+    "env_vars": ["IS_SANDBOX=1"],
+    "log_pattern": "/root/.claude/projects/*.jsonl",
+    "pricing": {
+      "input": 0.000003,
+      "output": 0.000015
+    }
+  },
+  "gpt": {
+    "command": "gpt-cli",
+    "args": ["--no-confirm"],
+    "env_vars": [],
+    "log_pattern": "/tmp/gpt_logs/*.json",
+    "pricing": {
+      "input": 0.000005,
+      "output": 0.000015
+    }
+  },
+  "gemini": {
+    "command": "gemini",
+    "args": ["--yolo"],
+    "env_vars": [],
+    "log_pattern": "/tmp/gemini_logs/*.json",
+    "pricing": {
+      "input": 0.000002,
+      "output": 0.00001
+    }
+  }
+}

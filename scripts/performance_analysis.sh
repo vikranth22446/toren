@@ -31,7 +31,7 @@ if [ -d ".git" ]; then
         echo "🔍 Real performance test with current codebase:"
         
         # Time bandit on main files
-        MAIN_FILES="claude_agent.py github_utils.py job_manager.py"
+        MAIN_FILES="toren.py github_utils.py job_manager.py"
         if ls $MAIN_FILES >/dev/null 2>&1; then
             echo "  Testing bandit on main files..."
             BANDIT_TIME=$( (time bandit -ll -f json $MAIN_FILES >/dev/null 2>&1) 2>&1 | grep real | awk '{print $2}')

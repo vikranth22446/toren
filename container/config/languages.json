@@ -1,0 +1,36 @@
+{
+  "python": {
+    "tools": "bandit -r . (security), safety check (vulnerabilities), pip-audit (dependencies)",
+    "setup_commands": ["pip install --quiet bandit safety pip-audit"],
+    "test_patterns": ["test_*.py", "*_test.py", "tests/"]
+  },
+  "rust": {
+    "tools": "cargo-audit (vulnerabilities), cargo clippy (lints), rust-security-scan (combined)",
+    "setup_commands": [
+      "rustup update",
+      "rustup component add clippy rustfmt",
+      "cargo install cargo-audit cargo-deny"
+    ],
+    "test_patterns": ["tests/", "src/**/tests/"]
+  },
+  "javascript": {
+    "tools": "eslint (linting), audit-ci (dependencies), npm audit (vulnerabilities)",
+    "setup_commands": ["npm install -g eslint audit-ci"],
+    "test_patterns": ["test/", "tests/", "**/*.test.js", "**/*.spec.js"]
+  },
+  "typescript": {
+    "tools": "eslint (linting), audit-ci (dependencies), tsc (type checking)",
+    "setup_commands": ["npm install -g eslint audit-ci typescript"],
+    "test_patterns": ["test/", "tests/", "**/*.test.ts", "**/*.spec.ts"]
+  },
+  "go": {
+    "tools": "go vet (static analysis), gosec (security), go mod verify (dependencies)",
+    "setup_commands": ["go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest"],
+    "test_patterns": ["*_test.go"]
+  },
+  "java": {
+    "tools": "spotbugs (static analysis), dependency-check (vulnerabilities)",
+    "setup_commands": [],
+    "test_patterns": ["src/test/", "**/*Test.java", "**/*Tests.java"]
+  }
+}

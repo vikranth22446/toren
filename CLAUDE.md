@@ -235,11 +235,116 @@ safety check                            # Check dependency vulnerabilities
 3. **Container loading**: Secure credential loading from mounted files
 4. **Cleanup**: Automatic removal of temporary credential files
 
+## Multi-CLI Support Architecture
+
+### System Abstraction Level
+The system is actually a **generic AI CLI runner** with minimal coupling to specific CLI tools. Key insight: All AI CLIs follow the same pattern:
+```
+input → AI processing → output
+```
+
+### Current Coupling Assessment: **3/10** (Loosely Coupled)
+
+**What's CLI-Specific** (Configuration Layer):
+- Command syntax: `claude code` vs `gemini chat` vs `cursor apply`
+- Authentication: API key formats and environment variables  
+- CLI flags: Different parameter names and options
+
+**What's Generic** (Core Architecture):
+- Docker container execution and orchestration
+- Git workflow management and branch handling
+- Progress tracking and GitHub API integration
+- Security scanning and input validation
+- Job management, monitoring, and cleanup
+- File mounting and workspace management
+
+### Multi-CLI Implementation: **2-3 weeks effort**
+
+**Required Changes**:
+1. **CLI Configuration** - Add CLI type parameter and command templates
+2. **Dynamic Command Generation** - Parameterize CLI execution in container entrypoint
+3. **Authentication Mapping** - Handle different API key formats per CLI
+
+**Implementation Pattern**:
+```python
+CLI_CONFIGS = {
+    'claude': {'cmd': 'claude code', 'auth_env': 'ANTHROPIC_API_KEY'},
+    'gemini': {'cmd': 'gemini chat', 'auth_env': 'GOOGLE_API_KEY'},
+    'cursor': {'cmd': 'cursor apply', 'auth_env': 'CURSOR_API_KEY'},
+    'qwen': {'cmd': 'qwen', 'auth_env': 'QWEN_API_KEY'}
+}
+```
+
+The core system value (enterprise security, Docker orchestration, job management) remains completely CLI-agnostic.
+
+## Refactoring Plan: Breaking Up the Monolith
+
+### Current Problem
+**`claude_agent.py`: 2,670 lines, 50+ methods** - unmaintainable monolith
+
+### Solution: Split by Responsibility
+
+#### 1. **Extract Validation Logic**
+**File**: `input_validator.py` (~150 lines)  
+**Why**: Security-critical, reusable, testable in isolation  
+**What**: All `_sanitize_*` and `validate_*` methods  
+**How**: Move 6 validation methods → standalone class
+
+#### 2. **Extract AI CLI Abstraction** 
+**File**: `ai_cli_interface.py` (~200 lines)  
+**Why**: Enable multi-CLI support (Gemini, Cursor, etc.)  
+**What**: Command building, auth config, cost estimation  
+**How**: Abstract hardcoded "claude code" commands → pluggable interface
+
+#### 3. **Extract Language Support**
+**File**: `language_support.py` (~300 lines)  
+**Why**: Support Python, Rust, Node.js with different toolchains/security tools  
+**What**: Language configs, security scanners, toolchain setup  
+**How**: Abstract hardcoded Python tools → language-specific implementations
+
+#### 4. **Extract Docker Operations**
+**File**: `container_manager.py` (~400 lines)  
+**Why**: Complex Docker logic, image building, container execution  
+**What**: `build_agent_image`, `execute_in_container`, `start_background_container`  
+**How**: Move 8 Docker-related methods → focused container management
+
+#### 5. **Extract GitHub Integration**
+**File**: `github_client.py` (~300 lines)  
+**Why**: API calls, issue fetching, PR creation  
+**What**: All GitHub API methods (`fetch_issue_content`, `create_pull_request`, etc.)  
+**How**: Move 6 GitHub methods → API client class
+
+#### 6. **Extract Command Handlers**
+**File**: `command_handlers.py` (~600 lines)  
+**Why**: CLI subcommands (status, logs, cleanup, etc.)  
+**What**: All job management UI methods  
+**How**: Move 12 command methods → separate CLI handler
+
+#### 7. **Keep Core Orchestration**
+**File**: `claude_agent.py` (~300 lines)  
+**Why**: Main workflow coordination  
+**What**: `run()`, `parse_args()`, high-level orchestration  
+**How**: Remove extracted code, add imports, maintain public API
+
+### Refactoring Benefits
+
+- **Maintainability**: 300-line focused files vs 2,670-line monolith
+- **Testability**: Each component testable in isolation with real tools  
+- **Extensibility**: Easy to add Gemini CLI, Rust support, new features
+- **Reusability**: Components usable independently (e.g., GitHub client in other projects)
+
+### Implementation Order
+1. **Week 1**: Extract pure logic (validator, interfaces) - low risk
+2. **Week 2**: Extract services (GitHub, container) - medium risk  
+3. **Week 3**: Refactor core orchestration - high risk, final integration
+
+**Result**: Clean architecture enabling multi-CLI and multi-language support without changing external API.
+
 ## Key Benefits
 
 - ✅ **Production-grade security**: Enterprise-level security with defense-in-depth architecture
 - ✅ **Fast execution**: Reuses existing Docker images with layer caching and optimized performance
-- ✅ **Claude autonomy**: Direct GitHub API access with secure credential handling and container security tools
+- ✅ **AI CLI agnostic**: Designed as generic AI CLI runner (easily extensible to Gemini, Qwen, Cursor)
 - ✅ **Comprehensive monitoring**: Real-time job tracking, AI-generated summaries, and progress notifications
 - ✅ **Flexible deployment**: Direct execution or background daemon modes with ML/AI environment support
 - ✅ **Robust error handling**: Comprehensive exception safety and resource cleanup

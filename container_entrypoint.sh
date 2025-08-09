@@ -19,6 +19,33 @@ if [ -z "$(git config user.email)" ]; then
     git config user.email "claude-agent@anthropic.com"
 fi
 
+# Set up GitHub token authentication for HTTPS git operations
+echo "🔐 Setting up GitHub authentication..."
+
+if [ -n "$GITHUB_TOKEN" ]; then
+    echo "✅ Found GitHub token in environment"
+    
+    # Handle read-only .gitconfig by using a writable location
+    export GIT_CONFIG_GLOBAL=/tmp/.gitconfig
+    
+    # Copy existing config if it exists
+    if [ -f "/root/.gitconfig" ]; then
+        cp /root/.gitconfig /tmp/.gitconfig 2>/dev/null || true
+    fi
+    
+    # Set up git credential helper with the token
+    git config --global credential.helper store
+    
+    # Create credential file manually (more reliable than piping to credential-store)
+    mkdir -p /root
+    echo "https://x-access-token:$GITHUB_TOKEN@github.com" > /root/.git-credentials
+    echo "✅ GitHub HTTPS authentication configured"
+else
+    echo "❌ No GitHub token found in environment"
+    echo "❌ Git operations will fail - check token setup"
+    exit 1
+fi
+
 echo "📥 Fetching latest changes..."
 git fetch origin
 
@@ -28,8 +55,14 @@ git checkout "$BASE_BRANCH"
 echo "📡 Pulling latest changes from $BASE_BRANCH..."
 git pull origin "$BASE_BRANCH"
 
-echo "🌱 Creating new branch: $BRANCH_NAME"
-git checkout -b "$BRANCH_NAME"
+echo "🌱 Setting up branch: $BRANCH_NAME"
+if git show-ref --verify --quiet refs/heads/"$BRANCH_NAME"; then
+    echo "✅ Branch $BRANCH_NAME already exists, checking out..."
+    git checkout "$BRANCH_NAME"
+else
+    echo "🌱 Creating new branch: $BRANCH_NAME"
+    git checkout -b "$BRANCH_NAME"
+fi
 
 echo "🔧 Setting up $LANGUAGE environment..."
 
@@ -78,15 +111,54 @@ echo "Files here are temporary and used for improving task accuracy and memory m
 
 echo "🤖 Starting Claude Code execution..."
 
-# Handle secure API key loading
-if [ -f "/run/secrets/anthropic_api_key" ]; then
+# Handle Claude Code authentication
+if [ -d "/root/.claude_mounted" ] && [ -n "$(ls -A /root/.claude_mounted 2>/dev/null)" ]; then
+    echo "🔐 Setting up Claude Code session authentication..."
+    # Copy mounted .claude directory to writable location
+    cp -r /root/.claude_mounted /root/.claude
+    chown -R root:root /root/.claude
+    chmod -R 755 /root/.claude
+    echo "✅ Claude Code configuration copied to writable location"
+elif [ -f "/run/secrets/anthropic_api_key" ]; then
     echo "🔐 Loading API key from secure file..."
     export ANTHROPIC_API_KEY=$(cat /run/secrets/anthropic_api_key)
 elif [ -n "$ANTHROPIC_API_KEY_FILE" ] && [ -f "$ANTHROPIC_API_KEY_FILE" ]; then
     echo "🔐 Loading API key from specified file..."
     export ANTHROPIC_API_KEY=$(cat "$ANTHROPIC_API_KEY_FILE")
-elif [ -z "$ANTHROPIC_API_KEY" ]; then
-    echo "❌ Error: No API key found. Expected file at /run/secrets/anthropic_api_key or ANTHROPIC_API_KEY environment variable."
+elif [ -f "/tmp/claude_credentials.json" ]; then
+    echo "🔐 Setting up ~/.claude.json for native Claude Code authentication"
+    
+    # Backup any existing .claude.json created by CLI installation
+    if [ -f "/root/.claude.json" ]; then
+        echo "📁 Backing up existing ~/.claude.json to ~/.claude.json.bak"
+        cp /root/.claude.json /root/.claude.json.bak
+    fi
+    
+    # Copy mounted credentials to proper location with correct permissions
+    cp /tmp/claude_credentials.json /root/.claude.json
+    chmod 600 /root/.claude.json
+    
+    echo "✅ Claude Code credentials configured (user's .claude.json preserved)"
+    echo "📊 User config validation:"
+    if grep -q "primaryApiKey" /root/.claude.json; then
+        echo "   ✅ primaryApiKey found"
+        # Verify API key format (should start with sk-ant-)
+        if grep -q "sk-ant-" /root/.claude.json; then
+            echo "   ✅ API key format valid"
+        else
+            echo "   ⚠️  API key format may be invalid"
+        fi
+    else
+        echo "   ❌ primaryApiKey not found"
+    fi
+elif [ -n "$ANTHROPIC_API_KEY" ]; then
+    echo "🔐 Using ANTHROPIC_API_KEY environment variable"
+else
+    echo "❌ Error: No authentication found. Expected:"
+    echo "   - Claude Code session: ~/.claude directory (recommended)"
+    echo "   - API key file: /run/secrets/anthropic_api_key" 
+    echo "   - Claude credentials: ~/.claude.json with primaryApiKey field"
+    echo "   - API key env var: ANTHROPIC_API_KEY"
     exit 1
 fi
 
@@ -152,7 +224,7 @@ COST_MONITOR_PID=$!
 
 # Execute Claude with correct command
 echo "🤖 Starting Claude execution..."
-claude --dangerously-skip-permissions --print "$CLAUDE_PROMPT"
+IS_SANDBOX=1 claude --dangerously-skip-permissions --print "$CLAUDE_PROMPT"
 CLAUDE_EXIT_CODE=$?
 
 # Stop cost monitoring and get final stats

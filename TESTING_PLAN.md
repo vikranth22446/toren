@@ -68,10 +68,10 @@ gh pr create --title "Test PR for @claude mentions" --body "This PR is for testi
 
 ### 1.4 Error Handling Testing (10 minutes)
 **Tests:**
-- [ ] **Invalid issue**: `python github_utils.py get-issue 99999`
-- [ ] **Invalid PR**: `python github_utils.py get-pr-comments 99999`
-- [ ] **Malformed commands**: Test missing parameters
-- [ ] **Empty PR comments**: Test PR with no @claude mentions
+- [x] **Invalid issue**: `python github_utils.py get-issue 99999`
+- [x] **Invalid PR**: `python github_utils.py get-pr-comments 99999`
+- [x] **Malformed commands**: Test missing parameters
+- [x] **Empty PR comments**: Test PR with no @claude mentions
 
 **Expected Results:**
 - Graceful error messages
@@ -85,9 +85,9 @@ gh pr create --title "Test PR for @claude mentions" --body "This PR is for testi
 
 ### 2.1 CLI Validation Testing (10 minutes)
 **Tests:**
-- [ ] **Multiple inputs**: `python3 claude_agent.py run --spec test.md --issue 1 --pr 42` (should fail)
-- [ ] **PR number validation**: `python3 claude_agent.py run --pr invalid-pr-format` (should fail)
-- [ ] **PR URL validation**: `python3 claude_agent.py run --pr https://github.com/user/repo/pull/42` (should extract number)
+- [x] **Multiple inputs**: `python3 claude_agent.py run --spec test.md --issue 1 --pr 42` (should fail)
+- [x] **PR number validation**: `python3 claude_agent.py run --pr invalid-pr-format` (should fail)
+- [x] **PR URL validation**: `python3 claude_agent.py run --pr https://github.com/user/repo/pull/42` (should extract number)
 - [ ] **Valid PR number**: `python3 claude_agent.py run --base-image python:3.9 --pr 42` (validation should pass)
 
 **Expected Results:**

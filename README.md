@@ -125,4 +125,6 @@ Edit `claude_agent.py` to customize:
     ╭─╮
     │C│  Powered by Claude
     ╰─╯
+
+🤖
 ```

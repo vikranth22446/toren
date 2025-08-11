@@ -1,18 +1,22 @@
 # Toren - Multi-AI CLI Agent Runner
 
-Toren is an autonomous containerized agent runner that simplifies staying in deep work while using AI agents. Most AI coding tools are useful in short bursts, but take you away from deep focus. They need constant checking as if working with a junior dev.
+TLDR: 
+> Modern LLMs are slower and think more[1]. Imagine having multiple ideas and letting several LLMs work on them in the background with minimal setup, in short, reviewable segments.
+
+Toren is an **autonomous containerized agent runner** that simplifies staying in deep work while using AI agents. Most AI coding tools are useful in short bursts, but take you away from deep focus. They need constant checking as *if working with a junior dev*.
 
 Toren is built on the assumption that AI should work as an autonomous agent in our existing local environment.
 
 The hard parts of using AI agents for my use cases:
 - Getting them access to the same resources you use — GPUs, model checkpoints, and a proper setup.
 - Writing clear, accurate specs so the output is easy to trust and easy to review.
+- Setting up many small codebases for them to work
 
 By focusing on writing specifications, you can take ownership and better understand the changes AI will make. 
 
 Using AI agents in async agent environments should be containerized to prevent security issues. Automated security scans should be run since it's hard to fully trust AI generated code.
 
-CLI tools are also becoming more common, and Toren makes it easy to swap tools or work directly inside your local dev setup.
+CLI tools are also becoming *more common*, and Toren makes it easy to swap tools or work directly inside your local dev setup. Testing Codex/Claude/etc.
 
 Compared to tools like
 - LangChain Open-SWE — Requires using LangChain services and Daytona for development. Also a local cli tool to manage all of it
@@ -151,3 +155,5 @@ This runs Trivy and the container security scans
 
 # TODO
 1. Currently the github token provided has too much access. Reduce it's access scope
+
+[1] I've heard a few anecdotes from friends and the internet about this [pheneomenon](https://x.com/karpathy/status/1954224651443544436?t=3-wpvaSkkjfaoP45-z7iMA). 

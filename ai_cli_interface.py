@@ -26,6 +26,12 @@ class AICliInterface:
                 "model": os.environ.get("GEMINI_MODEL", "gemini-2.5-flash"),
                 "print_flag": "-p",
             },
+            "codex": {
+                "command": "codex",
+                "api_key_env": "OPENAI_API_KEY",
+                "model": "gpt-5",
+                "print_flag": "exec",
+            },
         }
         self.config = self.cli_configs.get(cli_type, self.cli_configs["claude"])
 

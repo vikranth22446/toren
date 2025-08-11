@@ -16,6 +16,7 @@ from container_manager import ContainerManager
 from github_utils import GitHubUtils
 from input_validator import InputValidator
 from job_manager import JobManager
+from timeout_monitor import TimeoutMonitor
 from ui_utilities import UIUtilities
 
 
@@ -257,6 +258,7 @@ Please review the changes and test as appropriate for your workflow.
             args.env,
             args.volume,
             args.cli_type,
+            args.timelimit,
         )
 
         if success:
@@ -283,6 +285,7 @@ Please review the changes and test as appropriate for your workflow.
         custom_env: Optional[List[str]] = None,
         custom_volumes: Optional[List[str]] = None,
         cli_type: str = "claude",
+        timelimit: int = 600,
     ) -> bool:
         """Execute Claude Code in background daemon mode"""
         try:
@@ -293,6 +296,16 @@ Please review the changes and test as appropriate for your workflow.
             github_token = os.environ.get("GITHUB_TOKEN")
             anthropic_api_key = self._get_anthropic_api_key()
 
+            # Add timelimit to environment variables
+            env_vars = custom_env.copy() if custom_env else []
+            env_vars.append(f"AGENT_TIMELIMIT={timelimit}")
+
+            # Start timeout monitor for PR jobs
+            timeout_monitor = None
+            if hasattr(self, '_current_pr_number') and self._current_pr_number:
+                timeout_monitor = TimeoutMonitor(timelimit, job_id, self._current_pr_number)
+                timeout_monitor.start()
+
             container_process = self.container_manager.execute_in_container(
                 agent_image,
                 branch_name,
@@ -300,7 +313,7 @@ Please review the changes and test as appropriate for your workflow.
                 github_token,
                 anthropic_api_key,
                 job_id,
-                custom_env,
+                env_vars,
                 custom_volumes,
                 cli_type,
                 issue_number,

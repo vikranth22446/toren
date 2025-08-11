@@ -5,15 +5,6 @@ Production-grade autonomous GitHub agent system that processes specifications, e
 
 ## Architecture
 
-### Refactored Components (69% code reduction)
-- **`toren.py`** (846 lines) - Main orchestration and CLI interface
-- **`input_validator.py`** (191 lines) - Input sanitization and validation  
-- **`ai_cli_interface.py`** (162 lines) - Claude API interactions and cost estimation
-- **`container_manager.py`** (318 lines) - Docker operations and image building
-- **`ui_utilities.py`** (289 lines) - CLI dashboard, status display, and formatting
-- **`github_utils.py`** (477 lines) - GitHub API operations and PR management
-- **`job_manager.py`** (386 lines) - Background job lifecycle management
-
 ### Core Features
 - **Execution Modes**: Synchronous (--disable-daemon) or background daemon jobs
 - **Security**: Multi-layered input validation, secure credential mounting, path validation
@@ -70,17 +61,46 @@ Designed as generic AI CLI runner with minimal coupling:
 - **Generic Core**: Docker orchestration, Git workflows, security, job management
 - **Extensible**: Can support Gemini, Cursor, Qwen with configuration changes
 
+## Container Structure
+The `container/` folder contains the containerized execution environment:
+
+```
+container/
+├── entrypoint.sh           # Main container orchestration script
+├── config/                 # Configuration files
+│   ├── ai_providers.json   # Multi-CLI provider configurations (Claude, GPT, Gemini)
+│   ├── defaults.json       # Default container settings
+│   └── languages.json      # Language environment configurations
+└── lib/                    # Container execution modules
+    ├── ai_executor.py      # Provider-agnostic AI CLI runner
+    ├── auth_setup.sh       # Authentication and credential setup
+    ├── cost_monitor.py     # Token usage tracking and cost analysis
+    ├── env_setup.sh        # Language environment initialization
+    └── git_setup.sh        # Git workspace configuration
+```
+
+### Container Workflow
+1. **Entrypoint**: `entrypoint.sh` orchestrates the execution sequence
+2. **Authentication**: Sets up credentials for GitHub and AI providers
+3. **Git Setup**: Configures workspace and branch management
+4. **Environment**: Initializes language-specific toolchains
+5. **AI Execution**: Runs provider-specific CLI with cost monitoring
+6. **Cleanup**: Generates final reports and session summaries
+
 ## File Structure
 ```
 claude_agent_runner/
-├── toren.py           # Main orchestration (846 lines, 69% reduction)
-├── input_validator.py        # Validation logic
-├── ai_cli_interface.py       # Claude API interface  
-├── container_manager.py      # Docker operations
-├── ui_utilities.py           # CLI utilities and dashboard
-├── github_utils.py           # GitHub API integration
+├── toren.py                 # Main orchestration (846 lines, 69% reduction)
+├── input_validator.py       # Validation logic
+├── ai_cli_interface.py      # Claude API interface  
+├── container_manager.py     # Docker operations
+├── ui_utilities.py          # CLI utilities and dashboard
+├── github_utils.py          # GitHub API integration
 ├── job_manager.py           # Background job management
-├── container_entrypoint.sh  # Container initialization
+├── container/               # Containerized execution environment
+│   ├── entrypoint.sh        # Container orchestration
+│   ├── config/              # Multi-provider configurations
+│   └── lib/                 # Execution modules
 └── scripts/                 # Security scanning utilities
     ├── scan_diff.sh         # Fast git diff security scan
     ├── install-hooks.sh     # Pre-commit security hooks
@@ -94,3 +114,6 @@ claude_agent_runner/
 - ✅ **Flexible Deployment**: Sync/async modes with ML/AI environment support
 - ✅ **Comprehensive Monitoring**: Real-time tracking, AI summaries, cost analysis
 - ✅ **Multi-CLI Ready**: Generic architecture supporting multiple AI CLIs
+
+## Code Style Guidelines
+- **Python Code**: Write clean, readable code without excessive comments. Use docstrings for functions/classes but avoid inline comments unless absolutely necessary for complex logic.

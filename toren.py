@@ -310,6 +310,7 @@ Please review the changes and test as appropriate for your workflow.
                 custom_env,
                 custom_volumes,
                 cli_type,
+                issue_number,
             )
 
             container_id = f"{cli_type}-agent-{job_id}" if container_process else None

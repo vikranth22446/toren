@@ -259,6 +259,7 @@ Please review the changes and test as appropriate for your workflow.
             args.env,
             args.volume,
             args.cli_type,
+            args.timelimit,
         )
 
         if success:
@@ -285,6 +286,7 @@ Please review the changes and test as appropriate for your workflow.
         custom_env: Optional[List[str]] = None,
         custom_volumes: Optional[List[str]] = None,
         cli_type: str = "claude",
+        timelimit: int = 600,
     ) -> bool:
         """Execute Claude Code in background daemon mode"""
         try:
@@ -294,6 +296,13 @@ Please review the changes and test as appropriate for your workflow.
 
             github_token = os.environ.get("GITHUB_TOKEN")
             anthropic_api_key = self._get_anthropic_api_key()
+
+            # Add timelimit to environment variables
+            timelimit_env = f"TASK_TIMELIMIT={timelimit}"
+            if custom_env:
+                custom_env.append(timelimit_env)
+            else:
+                custom_env = [timelimit_env]
 
             container_process = self.container_manager.execute_in_container(
                 agent_image,

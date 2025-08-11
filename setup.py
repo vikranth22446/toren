@@ -27,6 +27,7 @@ setup(
     py_modules=[
         "toren",
         "ai_cli_interface",
+        "ai_cli_exec_utils",
         "container_manager",
         "input_validator",
         "job_manager",

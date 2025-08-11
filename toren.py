@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from ai_cli_interface import AICliInterface
+from ai_cli_exec_utils import AICliExecUtils
 from cli_parser import CLIParser
 from container_manager import ContainerManager
 from github_utils import GitHubUtils
@@ -32,6 +33,7 @@ class ClaudeAgent:
         self.job_manager = JobManager()
         self.validator = InputValidator()
         self.ai_cli = AICliInterface()
+        self.ai_cli_exec_utils = AICliExecUtils()
         self.container_manager = ContainerManager(self.validator)
         self.github_utils = GitHubUtils(reviewer_username)
         self.ui = UIUtilities(
@@ -74,6 +76,10 @@ class ClaudeAgent:
                 print("❌ Error: --image is required for update-base-image command")
                 sys.exit(1)
             self.ui.update_base_image(args.image)
+        elif args.command == "gen-dockerfile":
+            success = self.ai_cli_exec_utils.write_dockerfile(args.base_image)
+            if not success:
+                sys.exit(1)
         else:
             print("❌ Unknown command")
             sys.exit(1)

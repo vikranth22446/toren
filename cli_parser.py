@@ -43,6 +43,7 @@ Visit https://github.com/vikranth22446/toren for more information.""",
         self._add_kill_parser(subparsers)
         self._add_health_parser(subparsers)
         self._add_update_parser(subparsers)
+        self._add_gen_dockerfile_parser(subparsers)
 
         return self._parser.parse_args()
 
@@ -306,4 +307,28 @@ Visit https://github.com/vikranth22446/toren for more information.""",
             type=str,
             help="Docker image name to build (e.g., myproject:dev, python-custom:latest). Default from config.json.",
             default=self.config.get("default_base_image"),
+        )
+
+    def _add_gen_dockerfile_parser(self, subparsers):
+        """Add gen-dockerfile command parser"""
+        gen_dockerfile_parser = subparsers.add_parser(
+            "gen-dockerfile",
+            help="Generate a Dockerfile for the current project using AI",
+            description="Analyze the current codebase and generate an optimized Dockerfile using AI.",
+            epilog="""Examples:
+  %(prog)s                                    # Generate Dockerfile with auto-detected base image
+  %(prog)s --base-image python:3.11          # Use specific base image
+  %(prog)s --base-image node:18 --output ./docker/Dockerfile  # Specify output location""",
+            formatter_class=argparse.RawDescriptionHelpFormatter,
+        )
+        gen_dockerfile_parser.add_argument(
+            "--base-image",
+            type=str,
+            help="Base Docker image to use (e.g., python:3.11, node:18). If not specified, AI will auto-detect.",
+        )
+        gen_dockerfile_parser.add_argument(
+            "--output",
+            type=str,
+            default="./Dockerfile",
+            help="Output file path for generated Dockerfile (default: ./Dockerfile)",
         )

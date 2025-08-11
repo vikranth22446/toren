@@ -316,3 +316,87 @@ enough detail for confident implementation."""
                 print(f"  • {rec}")
 
         print()
+
+    def generate_dockerfile(
+        self, project_path: str, base_image: Optional[str] = None
+    ) -> Optional[str]:
+        """
+        Generate a Dockerfile by analyzing the current codebase using AI.
+        Returns the generated Dockerfile content or None on failure.
+        """
+        try:
+            print("🐳 Generating Dockerfile using AI analysis...")
+            
+            # Analyze project structure
+            project_files = []
+            try:
+                for root, dirs, files in os.walk(project_path):
+                    # Skip hidden directories and common build/cache directories
+                    dirs[:] = [d for d in dirs if not d.startswith('.') and d not in ['node_modules', '__pycache__', 'target', 'build', 'dist']]
+                    
+                    for file in files:
+                        if not file.startswith('.') and file.endswith(('.py', '.js', '.ts', '.go', '.rs', '.java', '.rb', '.php', '.txt', '.json', '.yaml', '.yml', '.toml', '.lock')):
+                            rel_path = os.path.relpath(os.path.join(root, file), project_path)
+                            project_files.append(rel_path)
+                
+                # Limit to first 30 files to avoid token limits
+                project_files = project_files[:30]
+            except Exception as e:
+                print(f"⚠️  Warning: Could not analyze project structure: {e}")
+                project_files = []
+
+            # Create prompt for Dockerfile generation
+            base_image_instruction = f"Use '{base_image}' as the base image." if base_image else "Select an appropriate base image based on the project type."
+            
+            dockerfile_prompt = f"""Analyze this project structure and generate an optimized Dockerfile:
+
+PROJECT FILES:
+{chr(10).join(project_files) if project_files else "No files found - generate a basic Dockerfile"}
+
+REQUIREMENTS:
+1. {base_image_instruction}
+2. Detect the primary language/framework from the files
+3. Install necessary system dependencies
+4. Copy application files efficiently
+5. Set appropriate working directory
+6. Install application dependencies (requirements.txt, package.json, Cargo.toml, etc.)
+7. Expose relevant ports if it's a web application
+8. Set proper entrypoint/command
+9. Follow Docker best practices (layer caching, minimize layers, non-root user if applicable)
+10. Add health checks if appropriate
+
+Generate a production-ready Dockerfile with comments explaining each section.
+Respond with ONLY the Dockerfile content - no additional text or explanations."""
+
+            result = subprocess.run(
+                [self.config["command"], self.config["print_flag"], dockerfile_prompt],
+                capture_output=True,
+                text=True,
+                timeout=self.CLI_COMMAND_TIMEOUT,
+            )
+
+            if result.returncode == 0:
+                dockerfile_content = result.stdout.strip()
+                
+                # Clean up the response - remove any markdown code blocks or extra text
+                if dockerfile_content.startswith("```"):
+                    lines = dockerfile_content.split('\n')
+                    start_idx = 1 if lines[0].startswith("```") else 0
+                    end_idx = len(lines)
+                    for i in range(len(lines)-1, -1, -1):
+                        if lines[i].strip() == "```":
+                            end_idx = i
+                            break
+                    dockerfile_content = '\n'.join(lines[start_idx:end_idx])
+                
+                return dockerfile_content.strip()
+            else:
+                print(f"❌ Dockerfile generation failed: {result.stderr}")
+                return None
+
+        except subprocess.TimeoutExpired:
+            print("❌ Dockerfile generation timed out")
+            return None
+        except Exception as e:
+            print(f"❌ Error generating Dockerfile: {e}")
+            return None

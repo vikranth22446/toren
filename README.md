@@ -20,7 +20,7 @@ By focusing on writing specifications, you can take ownership and better underst
 
 Using AI agents in async agent environments should be containerized to prevent security issues. Automated security scans should be run since it's hard to fully trust AI generated code.
 
-CLI tools are also becoming *more common*, and Toren makes it easy to swap tools or work directly inside your local dev setup. Testing Codex/Claude/etc.
+CLI tools are also becoming *more common*, and Toren makes it easy to **swap tools** or work directly inside your local dev setup. Testing Codex/Claude/etc.
 
 Compared to tools like
 - LangChain Open-SWE — Requires using LangChain services and Daytona for development. Also a local cli tool to manage all of it
@@ -39,7 +39,7 @@ Most of this code was AI-generated, but I do go through/refactor and fix it. It 
 - **Job Management**: Background execution, real-time monitoring, cost tracking
 - **GitHub Integration**: Issue processing, PR creation, progress notifications
 - **ML/AI**: Can use local resources for quick dev
-
+- 
 ## Quick Start
 
 ### Installation
@@ -108,10 +108,11 @@ Add a config.json if you want a default base image. check config.json.example
 | `toren cleanup` | Clean up completed jobs |
 | `toren kill` | Kill running job immediately |
 | `toren health` | Run system health checks |
+| `toren review` | Run code review on a PR |
 
 ## Key Options
 
-- `--cli-type {claude,gemini}`: Choose AI CLI to use
+- `--cli-type {claude,gemini,codex}`: Choose AI CLI to use
 - `--base-image IMAGE`: Docker base image for execution
 - `--spec FILE`: Markdown specification file
 - `--issue URL`: GitHub issue to process

@@ -95,7 +95,7 @@ Co-authored-by: {os.environ.get('DEFAULT_REVIEWER', 'vikranth22446')} <{os.envir
 
         if pr_number:
             pr_workflow = f"""Working on existing PR {pr_number}:
-1. First review ALL changes made in this PR so far: git diff {base_branch}...{branch}
+1. First review ALL changes made in this PR so far: git diff {base_branch}...{branch}. Perform a very mini code review.
 2. After completing work, push changes and comment on PR:
 python /usr/local/bin/github_utils.py comment-pr {pr_number} "✅ **Work Complete**
 

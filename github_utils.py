@@ -157,6 +157,50 @@ class GitHubUtils:
         except (GitHubError, json.JSONDecodeError):
             return []
 
+    def get_pr_diff(self, pr_number: str) -> str:
+        """Get unified diff for PR"""
+        try:
+            output = self.run_gh_command(
+                ["pr", "diff", pr_number]
+            )
+            return output
+        except GitHubError:
+            return ""
+
+    def get_pr_files(self, pr_number: str) -> List[Dict[str, Any]]:
+        """Get list of files changed in PR"""
+        try:
+            output = self.run_gh_command(
+                ["api", f"repos/:owner/:repo/pulls/{pr_number}/files"]
+            )
+            return json.loads(output)
+        except (GitHubError, json.JSONDecodeError):
+            return []
+
+    def create_pr_review(self, pr_number: str, body: str, event: str = "COMMENT") -> bool:
+        """Create a PR review with comments"""
+        try:
+            # Use GitHub API to create review
+            review_data = {
+                "body": body,
+                "event": event  # COMMENT, APPROVE, REQUEST_CHANGES
+            }
+            
+            # Create review using gh api
+            self.run_gh_command([
+                "api", 
+                f"repos/:owner/:repo/pulls/{pr_number}/reviews",
+                "--method", "POST",
+                "--field", f"body={body}",
+                "--field", f"event={event}"
+            ])
+            
+            print(f"✅ Successfully posted code review to PR #{pr_number}")
+            return True
+        except GitHubError as e:
+            print(f"❌ Failed to create PR review: {e}")
+            return False
+
     def extract_claude_tasks_from_pr(self, pr_number: str) -> str:
         """Extract tasks for Claude from PR comments and description"""
         pr_data = self.get_pr(pr_number)

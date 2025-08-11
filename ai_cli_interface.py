@@ -406,3 +406,72 @@ Respond with ONLY the Dockerfile content - no additional text or explanations.""
         except Exception as e:
             print(f"❌ Error generating Dockerfile: {e}")
             return None
+
+    def generate_code_review(
+        self, pr_title: str, pr_description: str, diff: str, files_changed: list
+    ) -> Optional[str]:
+        """
+        Generate AI code review for a pull request.
+        Returns the generated review content or None on failure.
+        """
+        try:
+            print("🔍 Generating AI code review...")
+            
+            file_names = [f.get('filename', 'unknown') for f in files_changed[:20]]  # Limit to 20 files
+            
+            review_prompt = f"""Please provide a comprehensive code review for this pull request:
+
+PR TITLE: {pr_title}
+
+PR DESCRIPTION:
+{pr_description or 'No description provided'}
+
+FILES CHANGED:
+{', '.join(file_names)}
+
+DIFF:
+{diff}
+
+Please analyze the code changes and provide:
+
+1. **Summary**: Brief overview of what the PR does
+2. **Code Quality**: Assessment of code quality, readability, and maintainability
+3. **Security**: Any potential security issues or concerns
+4. **Performance**: Performance implications of the changes
+5. **Best Practices**: Adherence to coding best practices and conventions
+8. **Suggestions**: Specific improvements or alternative approaches
+9. **Approval Status**: APPROVE, REQUEST_CHANGES, or COMMENT with reasoning
+
+Focus on:
+- Potential bugs or logic errors
+- Security vulnerabilities
+- Performance bottlenecks
+- Code style and consistency
+- Error handling
+- Edge cases
+- API design
+
+Be very succint. no more than 3 paragraphs of details. Use 1-2 lines when possible. 
+Be more lenient with minor changes and PR Approval since you might not have full context.
+Provide constructive feedback that helps improve the code. Be specific about line numbers or functions when possible."""
+
+            result = subprocess.run(
+                [self.config["command"], self.config["print_flag"], review_prompt],
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+
+            if result.returncode == 0:
+                review_content = result.stdout.strip()
+                return review_content
+            else:
+                print(f"❌ Code review generation failed: {result.stderr}")
+                return None
+
+        except subprocess.TimeoutExpired:
+            print("❌ Code review generation timed out")
+            return None
+        except Exception as e:
+            print(f"❌ Error generating code review: {e}")
+            return None

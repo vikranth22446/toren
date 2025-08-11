@@ -36,6 +36,7 @@ Visit https://github.com/vikranth22446/toren for more information.""",
         subparsers = self._parser.add_subparsers(dest="command", help="Available commands")
 
         self._add_run_parser(subparsers)
+        self._add_review_parser(subparsers)
         self._add_status_parser(subparsers)
         self._add_summary_parser(subparsers)
         self._add_logs_parser(subparsers)
@@ -331,4 +332,39 @@ Visit https://github.com/vikranth22446/toren for more information.""",
             type=str,
             default="./Dockerfile",
             help="Output file path for generated Dockerfile (default: ./Dockerfile)",
+        )
+
+    def _add_review_parser(self, subparsers):
+        """Add review command parser"""
+        review_parser = subparsers.add_parser(
+            "review",
+            help="AI code review for existing PR",
+            description="Generate and post AI code review for an existing GitHub pull request.",
+            epilog="""Examples:
+  %(prog)s 123                           # Review PR #123 and post comment
+  %(prog)s 123 --dry-run                 # Generate review without posting
+  %(prog)s 123 --approve                 # Generate review and approve if appropriate
+  %(prog)s 123 --cli-type gemini         # Use Gemini AI for review instead of Claude""",
+            formatter_class=argparse.RawDescriptionHelpFormatter,
+        )
+        review_parser.add_argument(
+            "pr_number",
+            type=str,
+            help="Pull request number to review (e.g., 123)"
+        )
+        review_parser.add_argument(
+            "--dry-run",
+            action="store_true",
+            help="Generate review but don't post to GitHub (print to console)"
+        )
+        review_parser.add_argument(
+            "--approve",
+            action="store_true",
+            help="Allow review to approve PR if code quality is sufficient"
+        )
+        review_parser.add_argument(
+            "--cli-type",
+            choices=["claude", "gemini", "codex"],
+            default="claude",
+            help="AI CLI to use for code review (default: claude)"
         )

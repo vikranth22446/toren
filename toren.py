@@ -55,6 +55,8 @@ class ClaudeAgent:
             sys.exit(0)
         elif args.command == "run":
             self.run_daemon_mode(args)
+        elif args.command == "review":
+            self.ui.review_pr(args.pr_number, args.dry_run, args.approve, args.cli_type)
         elif args.command == "status":
             self.ui.show_status(args.job_id, args.filter)
         elif args.command == "summary":

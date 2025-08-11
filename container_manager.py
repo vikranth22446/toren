@@ -43,6 +43,9 @@ class ContainerManager:
     echo "Gemini CLI installed" && \\
     # Create gemini config directory
     mkdir -p /root/.config/gemini"""
+        elif cli_type == "codex":
+            return """RUN npm install -g @openai/codex && \\
+    echo "Codex CLI installed\""""
         else:  # default to claude
             return """RUN curl -fsSL https://claude.ai/install.sh | bash && \\
     # Remove any default .claude.json created during installation
@@ -270,7 +273,7 @@ ENTRYPOINT ["/usr/local/container/entrypoint.sh"]
         branch_name: str,
         task_spec: str,
         github_token: Optional[str] = None,
-        anthropic_api_key: Optional[str] = None,
+        ai_api_key: Optional[str] = None,
         job_id: Optional[str] = None,
         custom_envs: Optional[List[str]] = None,
         custom_volumes: Optional[List[str]] = None,
@@ -351,10 +354,14 @@ ENTRYPOINT ["/usr/local/container/entrypoint.sh"]
         except Exception as e:
             print(f"⚠️  Warning: Could not get Git user config: {e}")
 
-        if anthropic_api_key:
-            key_file = self._create_temp_credential_file(anthropic_api_key, ".key")
-            temp_files.append(key_file)
-            docker_cmd.extend(["-v", f"{key_file}:/tmp/anthropic_key:ro"])
+        # Handle AI API key based on CLI type
+        if ai_api_key:
+            if cli_type == "claude":
+                key_file = self._create_temp_credential_file(ai_api_key, ".key")
+                temp_files.append(key_file)
+                docker_cmd.extend(["-v", f"{key_file}:/tmp/anthropic_key:ro"])
+            elif cli_type == "codex":
+                docker_cmd.extend(["-e", f"OPENAI_API_KEY={ai_api_key}"])
 
         gitconfig_path = Path.home() / ".gitconfig"
         if gitconfig_path.exists() and self.validator:

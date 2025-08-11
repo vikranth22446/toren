@@ -74,6 +74,8 @@ class ClaudeAgent:
                 print("❌ Error: --image is required for update-base-image command")
                 sys.exit(1)
             self.ui.update_base_image(args.image)
+        elif args.command == "gen-dockerfile":
+            self.generate_dockerfile(args)
         else:
             print("❌ Unknown command")
             sys.exit(1)
@@ -323,6 +325,61 @@ Please review the changes and test as appropriate for your workflow.
         except Exception as e:
             print(f"❌ Error starting daemon job: {e}")
             return False
+
+    def generate_dockerfile(self, args):
+        """Generate a Dockerfile for the current project using AI"""
+        print("🐳 Generating Dockerfile for current project...")
+        
+        # Check if API key is available
+        if not self.ai_cli.get_api_key():
+            print("❌ Error: AI API key not found. Please set ANTHROPIC_API_KEY environment variable.")
+            sys.exit(1)
+        
+        # Generate the Dockerfile content
+        dockerfile_content = self.ai_cli.generate_dockerfile(
+            project_path=os.getcwd(),
+            base_image=args.base_image
+        )
+        
+        if not dockerfile_content:
+            print("❌ Failed to generate Dockerfile")
+            sys.exit(1)
+        
+        # Write the Dockerfile to the specified output location
+        output_path = Path(args.output)
+        
+        try:
+            # Create directory if it doesn't exist
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            # Check if file exists and ask for confirmation
+            if output_path.exists():
+                response = input(f"⚠️  File {args.output} already exists. Overwrite? [y/N]: ").lower()
+                if response != "y":
+                    print("⏹️  Operation cancelled")
+                    sys.exit(0)
+            
+            # Write the Dockerfile
+            with open(output_path, 'w') as f:
+                f.write(dockerfile_content)
+            
+            print(f"✅ Dockerfile successfully generated at: {args.output}")
+            
+            # Show a preview of the generated content
+            lines = dockerfile_content.split('\n')
+            preview_lines = lines[:10] if len(lines) > 10 else lines
+            print("\n📄 **Preview of generated Dockerfile:**")
+            print("-" * 40)
+            for line in preview_lines:
+                print(line)
+            if len(lines) > 10:
+                print(f"... ({len(lines) - 10} more lines)")
+            print("-" * 40)
+            print(f"\n💡 You can now build your image with: docker build -t your-app .")
+            
+        except Exception as e:
+            print(f"❌ Error writing Dockerfile to {args.output}: {e}")
+            sys.exit(1)
 
 
 def main():

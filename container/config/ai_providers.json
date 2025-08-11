@@ -28,5 +28,16 @@
       "input": 0.000002,
       "output": 0.00001
     }
+  },
+  "codex": {
+    "command": "codex",
+    "args": ["--full-auto"],
+    "env_vars": [],
+    "log_pattern": "/tmp/codex_logs/*.json",
+    "pricing": {
+      "input": 0.00125,
+      "cached_input": 0.000125,
+      "output": 0.01
+    }
   }
 }

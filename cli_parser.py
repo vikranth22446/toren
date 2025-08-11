@@ -154,6 +154,12 @@ Visit https://github.com/vikranth22446/toren for more information.""",
             default="claude",
             help="AI CLI to use for the agent (default: claude)",
         )
+        run_parser.add_argument(
+            "--timelimit",
+            type=int,
+            default=600,
+            help="Time limit in seconds for agent execution (default: 600 seconds / 10 minutes)",
+        )
 
     def _add_status_parser(self, subparsers):
         """Add status command parser"""

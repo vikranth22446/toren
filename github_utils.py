@@ -179,26 +179,57 @@ class GitHubUtils:
 
     def create_pr_review(self, pr_number: str, body: str, event: str = "COMMENT") -> bool:
         """Create a PR review with comments"""
+        import tempfile
+        
         try:
-            # Use GitHub API to create review
+            # First, get the latest commit SHA for the PR
+            pr_data = self.run_gh_command([
+                "api", f"repos/:owner/:repo/pulls/{pr_number}",
+                "--jq", ".head.sha"
+            ])
+            commit_sha = pr_data.strip().strip('"')
+            
+            if not commit_sha:
+                print(f"❌ Could not get commit SHA for PR #{pr_number}")
+                return False
+            
+            # Prepare review data as JSON
             review_data = {
                 "body": body,
-                "event": event  # COMMENT, APPROVE, REQUEST_CHANGES
+                "event": event,
+                "commit_id": commit_sha
             }
             
-            # Create review using gh api
-            self.run_gh_command([
-                "api", 
-                f"repos/:owner/:repo/pulls/{pr_number}/reviews",
-                "--method", "POST",
-                "--field", f"body={body}",
-                "--field", f"event={event}"
-            ])
+            # Create temporary file with JSON data
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+                json.dump(review_data, f, ensure_ascii=False, indent=2)
+                temp_file = f.name
             
-            print(f"✅ Successfully posted code review to PR #{pr_number}")
-            return True
+            
+            try:
+                # Create review using gh api with JSON input
+                self.run_gh_command([
+                    "api", 
+                    f"repos/:owner/:repo/pulls/{pr_number}/reviews",
+                    "--method", "POST",
+                    "--input", temp_file
+                ])
+                
+                print(f"✅ Successfully posted code review to PR #{pr_number}")
+                return True
+            finally:
+                # Clean up temporary file
+                import os
+                try:
+                    os.unlink(temp_file)
+                except OSError:
+                    pass
+                    
         except GitHubError as e:
             print(f"❌ Failed to create PR review: {e}")
+            return False
+        except Exception as e:
+            print(f"❌ Unexpected error creating PR review: {e}")
             return False
 
     def extract_claude_tasks_from_pr(self, pr_number: str) -> str:

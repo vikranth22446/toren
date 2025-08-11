@@ -400,11 +400,13 @@ class UIUtilities:
                 return
             
             # Determine review event type
+            # Note: REQUEST_CHANGES requires special permissions, so defaulting to COMMENT
             review_event = "COMMENT"
             if allow_approve and "APPROVE" in review_content.upper():
                 review_event = "APPROVE"
-            elif "REQUEST_CHANGES" in review_content.upper() or "NEEDS CHANGES" in review_content.upper():
-                review_event = "REQUEST_CHANGES"
+            # Temporarily disable REQUEST_CHANGES due to GitHub API permissions
+            # elif "REQUEST_CHANGES" in review_content.upper() or "NEEDS CHANGES" in review_content.upper():
+            #     review_event = "REQUEST_CHANGES"
             
             # Post review to GitHub
             print(f"📤 Posting {review_event.lower()} review to PR #{pr_number}...")

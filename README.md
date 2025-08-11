@@ -21,10 +21,11 @@ Compared to tools like:
 - Claude as a GitHub user — Writing full specs in GitHub is cumbersome; providing them directly is simpler. Setting up with local models/checkpoints is also easier with local Docker abstraction. You are also billed on github action minutes
 
 # General Screenshots
-![alt text](demo_images/image.png)
-![alt text](demo_images/image-1.png)
-![alt text](demo_images/image-2.png)
-![alt text](demo_images/image-3.png)
+![alt text](demo_images/overall_cli.png)
+![alt text](demo_images/job_completion.png)
+![alt text](demo_images/status.png)
+![alt text](demo_images/job_start.png)
+![alt text](demo_images/job_logs.png)
 
 Most of this code was AI-generated, but I do go through/refactor and fix it. It cost around $100 to make. 
 
@@ -125,3 +126,6 @@ bash scripts/quality-check.sh. Runs mypy and flake8
 
 
 # Demo Commands
+
+# TODO
+1. Currently the github token provided has too much access. Reduce it's access scope

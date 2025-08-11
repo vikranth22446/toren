@@ -14,7 +14,7 @@ TASK_SPEC_FILE="${TASK_SPEC_FILE:-/tmp/task_spec.md}"
 LANGUAGE="${LANGUAGE:-python}"
 AI_PROVIDER="${AI_PROVIDER:-claude}"
 
-echo "🚀 Starting Claude Agent Container"
+echo "🚀 Starting Toren Container"
 
 # Load configuration
 source "$CONTAINER_LIB_DIR/git_setup.sh"

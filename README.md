@@ -1,7 +1,11 @@
 # Toren - Multi-AI CLI Agent Runner
 
-TLDR: 
-> Modern LLMs are slower and think more[1]. Imagine having multiple ideas and letting several LLMs work on them in the background with minimal setup, in short, reviewable segments.
+TLDR:
+> Modern LLMs are powerful but slow[1]. You cannot test ideas in parallel because both your codebase and your thought process are locked for each run.
+> Spinning up extra copies in your local dev is messy and hard to keep in sync.
+> Toren provides isolated, ready-to-go environments so you can explore in parallel and move faster.
+
+
 
 Toren is an **autonomous containerized agent runner** that simplifies staying in deep work while using AI agents. Most AI coding tools are useful in short bursts, but take you away from deep focus. They need constant checking as *if working with a junior dev*.
 
@@ -22,7 +26,7 @@ Compared to tools like
 - LangChain Open-SWE — Requires using LangChain services and Daytona for development. Also a local cli tool to manage all of it
 - Claude Code / Gemini — Pull you out of flow to verify steps and requires opening multiple copies of the codebase for multiple tasks.
 - Cursor — Great integration but constantly dictates the next edit, which interrupts your own thinking. For multiple tasks, you need multiple copies of the codebase
-- Claude as a GitHub user — Writing full specs in GitHub is cumbersome; providing them directly is simpler. Setting up with local models/checkpoints is also easier with local Docker abstraction. You are also billed on github action minutes
+- Claude as a GitHub user — Writing full specs in GitHub is cumbersome; providing them directly is simpler. Setting up with local models/checkpoints is also easier with local Docker abstraction. You are also billed on github action minutes. I also want to try differnt CLIs
 
 Most of this code was AI-generated, but I do go through/refactor and fix it. It cost around $100 to make. 
 
@@ -86,7 +90,7 @@ For the specific codebase, mount the directory and point to the /workspace secti
 ```bash
 WORKDIR /workspace
 COPY . /workspace/
-RUN if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+RUN if [ -f requirements.txt ]; then pip install -r requirements; fi
 ```
 
 Add a config.json if you want a default base image. check config.json.example
@@ -156,4 +160,8 @@ This runs Trivy and the container security scans
 # TODO
 1. Currently the github token provided has too much access. Reduce it's access scope
 
-[1] I've heard a few anecdotes from friends and the internet about this [pheneomenon](https://x.com/karpathy/status/1954224651443544436?t=3-wpvaSkkjfaoP45-z7iMA). 
+[1] I've heard a few anecdotes from friends and the internet about this [pheneomenon](https://x.com/karpathy/status/1954224651443544436?t=3-wpvaSkkjfaoP45-z7iMA).
+
+# Ack
+
+Thanks to @Tenzen for help 

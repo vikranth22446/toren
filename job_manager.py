@@ -772,3 +772,70 @@ Return only the 5-word title, nothing else."""
         # Start immediate check in background
         immediate_thread = threading.Thread(target=immediate_check, daemon=True)
         immediate_thread.start()
+
+
+class TimeoutMonitor:
+    """Monitor job execution time and notify when time limit is reached"""
+
+    def __init__(self, job_id: str, timelimit_seconds: int, github_utils=None):
+        self.job_id = job_id
+        self.timelimit_seconds = timelimit_seconds
+        self.github_utils = github_utils
+        self.start_time = time.time()
+        self.monitor_thread = None
+        self.stop_monitoring = threading.Event()
+
+    def start_monitoring(self):
+        """Start the background monitoring thread"""
+        if self.monitor_thread is None or not self.monitor_thread.is_alive():
+            self.monitor_thread = threading.Thread(target=self._monitor, daemon=True)
+            self.monitor_thread.start()
+
+    def stop_monitoring_thread(self):
+        """Stop the background monitoring thread"""
+        self.stop_monitoring.set()
+        if self.monitor_thread and self.monitor_thread.is_alive():
+            self.monitor_thread.join(timeout=1.0)
+
+    def _monitor(self):
+        """Background thread that monitors execution time"""
+        while not self.stop_monitoring.wait(timeout=5):  # Check every 5 seconds
+            elapsed_time = time.time() - self.start_time
+            
+            if elapsed_time >= self.timelimit_seconds:
+                # Time limit reached, send notification
+                self._send_timeout_notification(elapsed_time)
+                break
+
+    def _send_timeout_notification(self, elapsed_time: float):
+        """Send GitHub notification when time limit is reached"""
+        try:
+            minutes = int(elapsed_time // 60)
+            seconds = int(elapsed_time % 60)
+            
+            message = (
+                f"⏰ **Time Limit Reached**\n\n"
+                f"Job `{self.job_id}` has exceeded the specified time limit of "
+                f"{self.timelimit_seconds // 60} minutes.\n\n"
+                f"**Elapsed Time:** {minutes}m {seconds}s\n\n"
+                f"The agent is still running but may need manual intervention "
+                f"or additional time to complete the task."
+            )
+            
+            if self.github_utils:
+                # Try to send a PR comment notification
+                try:
+                    self.github_utils.notify_progress(f"Time limit reached: {minutes}m {seconds}s elapsed")
+                except Exception as e:
+                    print(f"⚠️ Failed to send GitHub notification: {e}")
+                    
+        except Exception as e:
+            print(f"⚠️ Error in timeout notification: {e}")
+
+    def get_elapsed_time(self) -> float:
+        """Get the elapsed time in seconds"""
+        return time.time() - self.start_time
+
+    def get_remaining_time(self) -> float:
+        """Get the remaining time in seconds (negative if exceeded)"""
+        return self.timelimit_seconds - self.get_elapsed_time()

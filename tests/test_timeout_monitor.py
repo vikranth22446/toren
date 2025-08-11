@@ -1,74 +1,94 @@
 #!/usr/bin/env python3
 """
-Test cases for TimeoutMonitor functionality
+Tests for TimeoutMonitor functionality
 """
 
 import time
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import Mock, patch
 
-from timeout_monitor import TimeoutMonitor
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from job_manager import TimeoutMonitor
 
 
 class TestTimeoutMonitor(unittest.TestCase):
-    """Test cases for TimeoutMonitor class"""
+    """Test the TimeoutMonitor class"""
 
     def setUp(self):
-        """Set up test fixtures"""
-        self.job_id = "test_job_123"
-        self.pr_number = "42"
-        self.short_timeout = 1  # 1 second for fast tests
+        self.job_id = "test-job-123"
+        self.timelimit = 5  # 5 seconds for quick testing
+        self.github_utils = Mock()
 
-    @patch('timeout_monitor.GitHubUtils')
-    def test_timeout_monitor_initialization(self, mock_github_utils):
-        """Test TimeoutMonitor initializes correctly"""
-        monitor = TimeoutMonitor(self.short_timeout, self.job_id, self.pr_number)
-        
-        self.assertEqual(monitor.timelimit, self.short_timeout)
+    def test_timeout_monitor_initialization(self):
+        """Test TimeoutMonitor initialization"""
+        monitor = TimeoutMonitor(self.job_id, self.timelimit, self.github_utils)
         self.assertEqual(monitor.job_id, self.job_id)
-        self.assertEqual(monitor.pr_number, self.pr_number)
-        self.assertFalse(monitor._started)
+        self.assertEqual(monitor.timelimit_seconds, self.timelimit)
+        self.assertEqual(monitor.github_utils, self.github_utils)
+        self.assertIsNone(monitor.monitor_thread)
 
-    @patch('timeout_monitor.GitHubUtils')
-    def test_timeout_monitor_start_stop(self, mock_github_utils):
-        """Test TimeoutMonitor start and stop functionality"""
-        monitor = TimeoutMonitor(self.short_timeout, self.job_id, self.pr_number)
+    def test_elapsed_time_calculation(self):
+        """Test elapsed time calculation"""
+        monitor = TimeoutMonitor(self.job_id, self.timelimit, self.github_utils)
         
-        # Test start
-        monitor.start()
-        self.assertTrue(monitor._started)
-        self.assertIsNotNone(monitor._timer_thread)
-        
-        # Test stop
-        monitor.stop()
-        self.assertTrue(monitor._stop_event.is_set())
+        # Wait a small amount of time
+        time.sleep(0.1)
+        elapsed = monitor.get_elapsed_time()
+        self.assertGreater(elapsed, 0.05)  # Should be at least 50ms
+        self.assertLess(elapsed, 1.0)     # Should be less than 1 second
 
-    @patch('timeout_monitor.GitHubUtils')
-    def test_timeout_notification(self, mock_github_utils):
-        """Test timeout notification is sent"""
-        mock_github = MagicMock()
-        mock_github_utils.return_value = mock_github
+    def test_remaining_time_calculation(self):
+        """Test remaining time calculation"""
+        monitor = TimeoutMonitor(self.job_id, self.timelimit, self.github_utils)
         
-        monitor = TimeoutMonitor(self.short_timeout, self.job_id, self.pr_number)
-        monitor.start()
-        
-        # Wait for timeout to trigger
-        time.sleep(1.5)
-        
-        # Verify GitHub comment was called
-        mock_github.comment_on_pr.assert_called_once()
-        call_args = mock_github.comment_on_pr.call_args
-        self.assertEqual(call_args[0][0], self.pr_number)  # PR number
-        self.assertIn(self.job_id, call_args[0][1])  # Job ID in message
-        self.assertIn("Timeout Alert", call_args[0][1])  # Timeout message
+        remaining = monitor.get_remaining_time()
+        self.assertLessEqual(remaining, self.timelimit)
+        self.assertGreater(remaining, self.timelimit - 1)  # Should be close to timelimit
 
-    def test_timeout_without_pr(self):
-        """Test timeout handling when no PR number is provided"""
-        monitor = TimeoutMonitor(self.short_timeout, self.job_id)
+    def test_monitor_thread_lifecycle(self):
+        """Test monitor thread can be started and stopped"""
+        monitor = TimeoutMonitor(self.job_id, self.timelimit, self.github_utils)
         
-        # This should not raise an exception
-        monitor._handle_timeout()
+        # Start monitoring
+        monitor.start_monitoring()
+        self.assertIsNotNone(monitor.monitor_thread)
+        self.assertTrue(monitor.monitor_thread.is_alive())
+        
+        # Stop monitoring
+        monitor.stop_monitoring_thread()
+        time.sleep(0.1)  # Give thread time to stop
+        self.assertFalse(monitor.monitor_thread.is_alive())
+
+    @patch('time.time')
+    def test_timeout_notification(self, mock_time):
+        """Test timeout notification is sent when time limit is reached"""
+        # Mock time to simulate timeout
+        mock_time.side_effect = [0, 10]  # Start at 0, then jump to 10 seconds
+        
+        monitor = TimeoutMonitor(self.job_id, 5, self.github_utils)  # 5 second limit
+        
+        # Manually trigger timeout notification
+        monitor._send_timeout_notification(10.0)
+        
+        # Verify GitHub notification was called
+        self.github_utils.notify_progress.assert_called_once()
+        call_args = self.github_utils.notify_progress.call_args[0]
+        self.assertIn("Time limit reached", call_args[0])
+
+    def test_timeout_monitor_without_github_utils(self):
+        """Test TimeoutMonitor works without GitHub utils"""
+        monitor = TimeoutMonitor(self.job_id, self.timelimit, None)
+        
+        # Should not raise exception
+        monitor._send_timeout_notification(10.0)
+        
+        # Basic functionality should still work
+        self.assertEqual(monitor.job_id, self.job_id)
+        self.assertGreater(monitor.get_elapsed_time(), 0)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

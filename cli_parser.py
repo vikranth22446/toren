@@ -158,7 +158,7 @@ Visit https://github.com/vikranth22446/toren for more information.""",
             "--timelimit",
             type=int,
             default=600,
-            help="Time limit for agent execution in seconds (default: 600, i.e., 10 minutes)",
+            help="Time limit for agent execution in seconds (default: 600 seconds/10 minutes)",
         )
 
     def _add_status_parser(self, subparsers):

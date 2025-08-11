@@ -127,6 +127,79 @@ It is vital that updates are posted based on the progress. Post updates via:
 
 Use /tmp/claude_docs/ for analysis. Working dir: /workspace."""
 
+    def _post_task_started(self, task_spec: str, branch: str):
+        """Post task started notification to GitHub"""
+        try:
+            # Get issue/PR context from environment
+            issue_number = os.environ.get("GITHUB_ISSUE_NUMBER")
+            pr_number = os.environ.get("PR_NUMBER")
+            
+            if pr_number:
+                # Get PR title for task name
+                result = subprocess.run([
+                    "python", "/usr/local/bin/github_utils.py", "get-pr", pr_number
+                ], capture_output=True, text=True)
+                if result.returncode == 0:
+                    import json
+                    pr_data = json.loads(result.stdout)
+                    task_title = pr_data.get("title", "Continue PR work")
+                else:
+                    task_title = f"Continue PR #{pr_number}"
+            elif issue_number:
+                # Get issue title for task name
+                result = subprocess.run([
+                    "python", "/usr/local/bin/github_utils.py", "get-issue", issue_number
+                ], capture_output=True, text=True)
+                if result.returncode == 0:
+                    import json
+                    issue_data = json.loads(result.stdout)
+                    task_title = issue_data.get("title", f"Issue #{issue_number}")
+                else:
+                    task_title = f"Issue #{issue_number}"
+            else:
+                task_title = self._extract_task_title_from_spec(task_spec)
+            
+            word_count = len(task_spec.split()) if isinstance(task_spec, str) else 0
+            
+            # Post formatted started message using the templates
+            from message_templates import MessageTemplates
+            started_msg = MessageTemplates.format_task_started(branch, task_title, word_count)
+            
+            # Post to appropriate target
+            if pr_number:
+                subprocess.run([
+                    "python", "/usr/local/bin/github_utils.py", "comment-pr", pr_number, started_msg
+                ], check=False)
+            elif issue_number:
+                subprocess.run([
+                    "python", "/usr/local/bin/github_utils.py", "comment-issue", issue_number, started_msg
+                ], check=False)
+            else:
+                print(f"📢 {started_msg}", flush=True)
+                
+        except Exception as e:
+            print(f"⚠️ Failed to post task started notification: {e}", flush=True)
+
+    def _extract_task_title_from_spec(self, task_spec: str) -> str:
+        """Extract task title from specification file or text"""
+        if isinstance(task_spec, str):
+            # If it's a file path, read the first line
+            if task_spec.startswith('/') and '\n' not in task_spec:
+                try:
+                    with open(task_spec, 'r') as f:
+                        first_line = f.readline().strip()
+                        return first_line.lstrip('#').strip()[:100]
+                except:
+                    return task_spec.split('/')[-1]
+            else:
+                # Extract first meaningful line from text
+                lines = task_spec.strip().split('\n')
+                for line in lines:
+                    line = line.strip().lstrip('#').strip()
+                    if line and len(line) > 5:
+                        return line[:100]
+        return "AI Task"
+
     def execute(
         self, task_spec: str, branch: str, base_branch: str, language: str
     ) -> int:
@@ -173,6 +246,74 @@ Use /tmp/claude_docs/ for analysis. Working dir: /workspace."""
         self._post_task_completion(exit_code, branch)
 
         return exit_code
+
+    def _post_task_completion(self, exit_code: int, branch: str):
+        """Post task completion or failure notification to GitHub"""
+        try:
+            issue_number = os.environ.get("GITHUB_ISSUE_NUMBER")
+            pr_number = os.environ.get("PR_NUMBER")
+            reviewer = os.environ.get('DEFAULT_REVIEWER', 'vikranth22446')
+            
+            from message_templates import MessageTemplates
+            
+            if exit_code == 0:
+                # Success - check if PR was created by looking at git log
+                try:
+                    # Get recent commits to estimate lines changed
+                    result = subprocess.run([
+                        "git", "log", "--oneline", "-1", "--stat"
+                    ], capture_output=True, text=True, cwd="/workspace")
+                    
+                    lines_changed = 0
+                    if result.returncode == 0:
+                        # Parse git stat output for line changes
+                        stat_lines = result.stdout.split('\n')
+                        for line in stat_lines:
+                            if 'insertions' in line or 'deletions' in line:
+                                import re
+                                numbers = re.findall(r'(\d+)', line)
+                                lines_changed += sum(int(n) for n in numbers)
+                    
+                    # Try to find if PR was created (look for PR number in recent commits)
+                    created_pr_number = pr_number  # Use existing PR or will be set if new one created
+                    
+                    completed_msg = MessageTemplates.format_task_completed(
+                        reviewer=reviewer,
+                        pr_number=created_pr_number or "TBD",
+                        branch=branch,
+                        lines_changed=lines_changed
+                    )
+                except Exception:
+                    # Fallback if git parsing fails
+                    completed_msg = MessageTemplates.format_task_completed(
+                        reviewer=reviewer,
+                        pr_number=pr_number or "TBD", 
+                        branch=branch,
+                        lines_changed=0
+                    )
+            else:
+                # Failure
+                error_reason = f"Process exited with code {exit_code}"
+                completed_msg = MessageTemplates.format_task_failed(
+                    reviewer=reviewer,
+                    error_reason=error_reason,
+                    branch=branch
+                )
+            
+            # Post to appropriate target
+            if pr_number:
+                subprocess.run([
+                    "python", "/usr/local/bin/github_utils.py", "comment-pr", pr_number, completed_msg
+                ], check=False)
+            elif issue_number:
+                subprocess.run([
+                    "python", "/usr/local/bin/github_utils.py", "comment-issue", issue_number, completed_msg
+                ], check=False)
+            else:
+                print(f"📢 {completed_msg}", flush=True)
+                
+        except Exception as e:
+            print(f"⚠️ Failed to post task completion notification: {e}", flush=True)
 
 
 class LogMonitor:

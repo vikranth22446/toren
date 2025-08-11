@@ -15,6 +15,52 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 
+class TimeoutManager:
+    """Simple timeout manager to monitor and terminate long-running AI tasks"""
+
+    def __init__(self, timeout_seconds: int, process: subprocess.Popen):
+        self.timeout_seconds = timeout_seconds
+        self.process = process
+        self.is_timeout = False
+        self._thread = None
+
+    def start(self):
+        """Start timeout monitoring in a background thread"""
+        self._thread = threading.Thread(target=self._monitor_timeout)
+        self._thread.daemon = True
+        self._thread.start()
+        print(f"⏱️ Task timeout set to {self.timeout_seconds} seconds", flush=True)
+
+    def _monitor_timeout(self):
+        """Monitor timeout and terminate process if limit exceeded"""
+        time.sleep(self.timeout_seconds)
+        
+        if self.process.poll() is None:  # Process is still running
+            self.is_timeout = True
+            print(f"⏱️ TIME LIMIT REACHED: Task exceeded {self.timeout_seconds} seconds", flush=True)
+            
+            # Try to comment on PR/issue about timeout
+            try:
+                pr_number = os.environ.get("PR_NUMBER")
+                issue_number = os.environ.get("GITHUB_ISSUE_NUMBER")
+                
+                timeout_message = f"⏱️ **Time Limit Reached**\\n\\nTask execution exceeded the {self.timeout_seconds} second time limit and was automatically terminated."
+                
+                if pr_number:
+                    subprocess.run([
+                        "python", "/usr/local/bin/github_utils.py", "comment-pr", pr_number, timeout_message
+                    ], check=False)
+                elif issue_number:
+                    subprocess.run([
+                        "python", "/usr/local/bin/github_utils.py", "comment-issue", issue_number, timeout_message
+                    ], check=False)
+            except Exception as e:
+                print(f"⚠️ Failed to post timeout notification: {e}", flush=True)
+            
+            # Terminate the process
+            self.process.terminate()
+
+
 class AIProviderConfig:
     def __init__(self, config_dir: str = "/usr/local/etc/container"):
         self.config_dir = Path(config_dir)
@@ -230,6 +276,17 @@ Use /tmp/claude_docs/ for analysis. Working dir: /workspace."""
             env=env
         )
 
+        # Setup timeout monitoring if specified
+        timeout_manager = None
+        task_timelimit = os.environ.get("TASK_TIMELIMIT")
+        if task_timelimit:
+            try:
+                timeout_seconds = int(task_timelimit)
+                timeout_manager = TimeoutManager(timeout_seconds, process)
+                timeout_manager.start()
+            except ValueError:
+                print(f"⚠️ Invalid TASK_TIMELIMIT value: {task_timelimit}", flush=True)
+
         # Start log monitoring
         log_monitor = LogMonitor(
             self.provider_config["log_pattern"],
@@ -241,6 +298,11 @@ Use /tmp/claude_docs/ for analysis. Working dir: /workspace."""
         # Wait for completion and get exit code
         exit_code = process.wait()
         log_monitor.stop()
+
+        # Check if timeout occurred
+        if timeout_manager and timeout_manager.is_timeout:
+            print("⏱️ Task terminated due to timeout", flush=True)
+            exit_code = -1  # Indicate timeout with special exit code
         
         # Post completion/failure notification to GitHub
         self._post_task_completion(exit_code, branch)

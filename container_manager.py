@@ -3,6 +3,7 @@
 import fcntl
 import hashlib
 import os
+import shlex
 import subprocess
 import tempfile
 from contextlib import contextmanager
@@ -108,13 +109,13 @@ ENV PATH="/root/.local/bin:$PATH"
 ENV PYTHONPATH="/usr/local/bin:$PYTHONPATH"
 
 # Copy refactored container components and GitHub utilities
-COPY container/ /usr/local/
+COPY container/ /usr/local/container/
 COPY github_utils.py /usr/local/bin/github_utils.py
 COPY message_templates.py /usr/local/bin/message_templates.py
-RUN chmod +x /usr/local/entrypoint.sh /usr/local/lib/*.sh /usr/local/lib/*.py /usr/local/bin/github_utils.py /usr/local/bin/message_templates.py
+RUN chmod +x /usr/local/container/entrypoint.sh /usr/local/container/lib/*.sh /usr/local/container/lib/*.py /usr/local/bin/github_utils.py /usr/local/bin/message_templates.py
 
 WORKDIR /workspace
-ENTRYPOINT ["/usr/local/entrypoint.sh"]
+ENTRYPOINT ["/usr/local/container/entrypoint.sh"]
 """
 
     @contextmanager
@@ -149,7 +150,7 @@ ENTRYPOINT ["/usr/local/entrypoint.sh"]
     def build_agent_image(self, base_image: str, cli_type: str = "claude") -> str:
         agent_image = (
             f"{cli_type}-agent-{hashlib.md5(base_image.encode()).hexdigest()[:10]}"
-        )
+        ).lower()
 
         try:
             result = subprocess.run(
@@ -280,7 +281,6 @@ ENTRYPOINT ["/usr/local/entrypoint.sh"]
         docker_cmd = [
             "docker",
             "run",
-            "--rm",
             "--name",
             container_name,
         ]
@@ -288,10 +288,67 @@ ENTRYPOINT ["/usr/local/entrypoint.sh"]
         # Track temp files for cleanup after container starts
         temp_files = []
 
+        # Get GitHub token and username from gh CLI if not provided
+        if not github_token:
+            try:
+                gh_token_result = subprocess.run(
+                    ["gh", "auth", "status", "--show-token"], 
+                    capture_output=True, text=True, check=False
+                )
+                if gh_token_result.returncode == 0:
+                    # GitHub CLI outputs to stderr, check both stdout and stderr
+                    output = gh_token_result.stdout + gh_token_result.stderr
+                    if "Token:" in output:
+                        # Extract token from "Token: gho_xxxx" line
+                        for line in output.split('\n'):
+                            if 'Token:' in line:
+                                github_token = line.split('Token:')[1].strip()
+                                print(f"✅ GitHub token configured ({len(github_token)} chars)")
+                                break
+            except Exception as e:
+                print(f"⚠️  Warning: Could not get GitHub token: {e}")
+
         if github_token:
-            token_file = self._create_temp_credential_file(github_token, ".token")
-            temp_files.append(token_file)
-            docker_cmd.extend(["-v", f"{token_file}:/tmp/github_token:ro"])
+            docker_cmd.extend(["-e", f"GITHUB_TOKEN={github_token}"])
+
+        # Get GitHub username for HTTPS authentication
+        try:
+            gh_user_result = subprocess.run(
+                ["gh", "api", "user", "--jq", ".login"], 
+                capture_output=True, text=True, check=False
+            )
+            if gh_user_result.returncode == 0 and gh_user_result.stdout.strip():
+                github_username = gh_user_result.stdout.strip()
+                docker_cmd.extend(["-e", f"GITHUB_USERNAME={github_username}"])
+                print(f"✅ GitHub username: {github_username}")
+        except Exception as e:
+            print(f"⚠️  Warning: Could not get GitHub username: {e}")
+
+        # Pass Git configuration to container
+        try:
+            git_user_result = subprocess.run(
+                ["git", "config", "--get", "user.name"], 
+                capture_output=True, text=True, check=False
+            )
+            if git_user_result.returncode == 0 and git_user_result.stdout.strip():
+                git_username = git_user_result.stdout.strip()
+                # Escape quotes and special characters for Docker
+                git_username_escaped = git_username.replace('"', '\\"')
+                docker_cmd.extend(["-e", f"GIT_AUTHOR_NAME={git_username_escaped}"])
+                docker_cmd.extend(["-e", f"GIT_COMMITTER_NAME={git_username_escaped}"])
+                
+            git_email_result = subprocess.run(
+                ["git", "config", "--get", "user.email"], 
+                capture_output=True, text=True, check=False
+            )
+            if git_email_result.returncode == 0 and git_email_result.stdout.strip():
+                git_email = git_email_result.stdout.strip()
+                git_email_escaped = git_email.replace('"', '\\"')
+                docker_cmd.extend(["-e", f"GIT_AUTHOR_EMAIL={git_email_escaped}"])
+                docker_cmd.extend(["-e", f"GIT_COMMITTER_EMAIL={git_email_escaped}"])
+                
+        except Exception as e:
+            print(f"⚠️  Warning: Could not get Git user config: {e}")
 
         if anthropic_api_key:
             key_file = self._create_temp_credential_file(anthropic_api_key, ".key")
@@ -304,19 +361,9 @@ ENTRYPOINT ["/usr/local/entrypoint.sh"]
                 validated_path = self.validator.validate_mount_path(
                     gitconfig_path, "Git config"
                 )
-                docker_cmd.extend(["-v", f"{validated_path}:/root/.gitconfig:ro"])
+                docker_cmd.extend(["-v", f"{validated_path}:/root/.gitconfig:rw"])
             except ValueError as e:
                 print(f"⚠️  Warning: Skipping git config: {e}")
-
-        ssh_path = Path.home() / ".ssh"
-        if ssh_path.exists() and self.validator:
-            try:
-                validated_path = self.validator.validate_mount_path(
-                    ssh_path, "SSH directory"
-                )
-                docker_cmd.extend(["-v", f"{validated_path}:/root/.ssh:ro"])
-            except ValueError as e:
-                print(f"⚠️  Warning: Skipping SSH keys: {e}")
 
         # Mount AI CLI config based on cli_type
         if cli_type == "claude":
@@ -326,19 +373,9 @@ ENTRYPOINT ["/usr/local/entrypoint.sh"]
                     validated_path = self.validator.validate_mount_path(
                         claude_json_path, "Claude JSON config"
                     )
-                    docker_cmd.extend(["-v", f"{validated_path}:/root/.claude.json:ro"])
+                    docker_cmd.extend(["-v", f"{validated_path}:/tmp/claude_credentials.json:ro"])
                 except ValueError as e:
                     print(f"⚠️  Warning: Skipping Claude JSON config: {e}")
-
-            claude_dir_path = Path.home() / ".claude"
-            if claude_dir_path.exists() and self.validator:
-                try:
-                    validated_path = self.validator.validate_mount_path(
-                        claude_dir_path, "Claude Code config"
-                    )
-                    docker_cmd.extend(["-v", f"{validated_path}:/root/.claude:ro"])
-                except ValueError as e:
-                    print(f"⚠️  Warning: Skipping Claude directory: {e}")
         elif cli_type == "gemini":
             gemini_config_path = Path.home() / ".config" / "gemini"
             if gemini_config_path.exists() and self.validator:
@@ -382,8 +419,6 @@ ENTRYPOINT ["/usr/local/entrypoint.sh"]
                 except ValueError as e:
                     print(f"⚠️  Warning: Skipping volume {host_path}: {e}")
 
-        docker_cmd.extend(["-v", f"{Path.cwd()}:/workspace"])
-
         if custom_envs:
             for env in custom_envs:
                 try:
@@ -399,15 +434,32 @@ ENTRYPOINT ["/usr/local/entrypoint.sh"]
                 except ValueError as e:
                     print(f"⚠️  Warning: Skipping invalid environment variable: {e}")
 
+        # Set environment variables for the container instead of command arguments
+        docker_cmd.extend(["-e", f"BRANCH_NAME={branch_name}"])
+        
+        # Create task spec file
+        import tempfile
+        task_spec_fd, task_spec_path = tempfile.mkstemp(suffix=".md", prefix="task_spec_")
+        try:
+            with os.fdopen(task_spec_fd, 'w') as f:
+                f.write(task_spec)
+            docker_cmd.extend(["-v", f"{task_spec_path}:/tmp/task_spec.md:ro"])
+            temp_files.append(task_spec_path)
+        except Exception as e:
+            os.close(task_spec_fd)
+            raise
+
+        # Mount cost data directory to persist Claude usage data
+        if job_id:
+            cost_data_host_dir = Path.cwd() / ".ai_cost_data" / job_id
+            cost_data_host_dir.mkdir(parents=True, exist_ok=True)
+            docker_cmd.extend(["-v", f"{cost_data_host_dir}:/tmp/cost_data:rw"])
+
         # Validate and sanitize other inputs
         try:
             if self.validator:
                 validated_image = self.validator.sanitize_docker_image(agent_image)
-                validated_branch = self.validator.sanitize_branch_name(branch_name)
-                validated_task_spec = self.validator.validate_task_spec(task_spec)
-                docker_cmd.extend(
-                    [validated_image, validated_branch, validated_task_spec]
-                )
+                docker_cmd.append(validated_image)
             else:
                 # Basic fallback validation
                 if (
@@ -415,7 +467,7 @@ ENTRYPOINT ["/usr/local/entrypoint.sh"]
                     and self._is_safe_input(branch_name)
                     and len(task_spec) < 50000
                 ):
-                    docker_cmd.extend([agent_image, branch_name, task_spec])
+                    docker_cmd.append(agent_image)
                 else:
                     raise ValueError(
                         "Input validation failed - unsafe parameters detected"
@@ -423,12 +475,37 @@ ENTRYPOINT ["/usr/local/entrypoint.sh"]
         except ValueError as e:
             print(f"❌ Input validation failed: {e}")
             raise
-
         try:
             print(f"🚀 Starting container: {container_name}")
-            process = subprocess.Popen(
-                docker_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
-            )
+            # First test if the command is valid by running it with --help or dry run
+            try:
+                # Test docker command execution
+                process = subprocess.Popen(
+                    docker_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+                )
+                # Check if process started and wait briefly for any immediate failures
+                import time
+                time.sleep(1.0)  # Give more time to start
+                
+                if process.poll() is not None:
+                    # Process already terminated
+                    stdout, stderr = process.communicate()
+                    print(f"❌ Container exited immediately with code {process.returncode}")
+                    print(f"❌ Stdout: {stdout}")
+                    print(f"❌ Stderr: {stderr}")
+                    # Clean up temp files if container start failed
+                    if temp_files:
+                        self._cleanup_temp_files(temp_files)
+                    return None
+                else:
+                    print(f"✅ Container appears to be starting successfully")
+                    
+            except Exception as e:
+                print(f"❌ Failed to execute docker command: {e}")
+                # Clean up temp files if container start failed
+                if temp_files:
+                    self._cleanup_temp_files(temp_files)
+                return None
             # Clean up temp credential files after container starts
             if temp_files:
                 self._cleanup_temp_files(temp_files)

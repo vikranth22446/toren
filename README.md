@@ -1,29 +1,47 @@
 # Toren - Multi-AI CLI Agent Runner
 
-**Toren** is a production-grade autonomous GitHub agent system that can work with multiple AI CLIs (Claude, Gemini, and more). It processes specifications, executes code changes, and creates pull requests with enterprise security controls.
+Toren is an autonomous containerized agent runner that simplifies staying in deep work while using AI agents. Most AI coding tools are useful in short bursts, but take you away from deep focus. They need constant checking as if working with a junior dev.
+
+Toren is built on the assumption that AI should work as an autonomous agent in our existing local environment.
+
+The hard parts of using AI agents for my use cases:
+- Getting them access to the same resources you use — GPUs, model checkpoints, and a proper setup.
+- Writing clear, accurate specs so the output is easy to trust and easy to review.
+
+By focusing on writing specifications, you can take ownership and better understand the changes AI will make. 
+
+Using AI agents in async agent environments should be containerized to prevent security issues. Automated security scans should be run since it's hard to fully trust AI generated code.
+
+CLI tools are also becoming more common, and Toren makes it easy to swap tools or work directly inside your local dev setup.
+
+Compared to tools like:
+- LangChain Open-SWE — Requires using LangChain services and Daytona for development. Also a local cli tool to manage all of it
+- Claude Code / Gemini — Pull you out of flow to verify steps and requires opening multiple copies of the codebase for multiple tasks.
+- Cursor — Great integration but constantly dictates the next edit, which interrupts your own thinking. For multiple tasks, you need multiple copies of the codebase
+- Claude as a GitHub user — Writing full specs in GitHub is cumbersome; providing them directly is simpler. Setting up with local models/checkpoints is also easier with local Docker abstraction. You are also billed on github action minutes
+
+# General Screenshots
+![alt text](demo_images/image.png)
+![alt text](demo_images/image-1.png)
+![alt text](demo_images/image-2.png)
+![alt text](demo_images/image-3.png)
+
+Most of this code was AI-generated, but I do go through/refactor and fix it. It cost around $100 to make. 
+
 
 ## Features
 
-- 🤖 **Multi-AI Support**: Works with Claude, Gemini, and extensible to other AI CLIs
-- 🐳 **Docker-based Execution**: Secure, isolated environments with custom base images  
-- 🔒 **Enterprise Security**: Input validation, credential management, vulnerability scanning
-- 📊 **Job Management**: Background execution, real-time monitoring, cost tracking
-- 🔗 **GitHub Integration**: Issue processing, PR creation, progress notifications
-- 🏗️ **ML/AI Ready**: GPU support, model caching, custom environments
+- **Multi-AI Support**: Works with Claude, Gemini, and extensible to other AI CLIs
+- **Docker-based Execution**: Secure, isolated environments with custom base images  
+- **Security** some automated security checks
+- **Job Management**: Background execution, real-time monitoring, cost tracking
+- **GitHub Integration**: Issue processing, PR creation, progress notifications
+- **ML/AI**: Can use local resources for quick dev
 
 ## Quick Start
 
 ### Installation
 
-```bash
-# Clone and install
-git clone <repository_url>
-cd toren
-chmod +x install.sh
-./install.sh
-```
-
-Or install manually:
 ```bash
 pip install -e .
 ```
@@ -63,41 +81,17 @@ toren run --base-image pytorch/pytorch:latest --spec ml_task.md --branch fix/tra
 ```
 
 ## Prerequisites
+Install Docker, Your CLI of choice(mainly claude code rn)
 
-- **Python 3.8+**
-- **Docker** (with access to run containers)
-- **AI CLI credentials**:
-  - Claude: `~/.claude.json` or `ANTHROPIC_API_KEY` environment variable
-  - Gemini: `GEMINI_API_KEY` environment variable
-- **GitHub Token**: `GITHUB_TOKEN` environment variable (for GitHub operations)
+For the specific codebase, mount the directory and point to the /workspace section.
+
+```bash
+WORKDIR /workspace
+COPY . /workspace/
+RUN if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+```
 
 ## Configuration
-
-### AI CLI Setup
-
-**Claude:**
-```bash
-# Option 1: Install Claude CLI and configure
-curl -fsSL https://claude.ai/install.sh | bash
-# Then follow Claude CLI setup
-
-# Option 2: Set environment variable
-export ANTHROPIC_API_KEY=your_key_here
-```
-
-**Gemini:**
-```bash
-# Install Gemini CLI
-npm install -g @google/generative-ai-cli
-
-# Set environment variable  
-export GEMINI_API_KEY=your_key_here
-```
-
-**GitHub:**
-```bash
-export GITHUB_TOKEN=your_github_token
-```
 
 ## Commands
 
@@ -123,33 +117,11 @@ export GITHUB_TOKEN=your_github_token
 - `--language {python,rust}`: Project language
 - `--cost-estimate`: Estimate AI API costs
 
-## Security Features
-
-- 🔐 **Input Validation**: Regex patterns, allowlists, length limits
-- 🗂️ **Credential Management**: Read-only file mounting (not environment variables)
-- 🛡️ **Path Security**: Directory allowlisting, traversal protection  
-- 🔍 **Container Security**: Resource cleanup, vulnerability scanning
-- 🔒 **Race Prevention**: File locking for atomic operations
-
-## Architecture
-
-Toren is designed as a generic AI CLI runner with minimal coupling:
-
-- **CLI-Specific**: Command syntax, authentication formats (easily configurable)
-- **Generic Core**: Docker orchestration, Git workflows, security, job management
-- **Extensible**: Can support additional AI CLIs with configuration changes
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Run tests: `python -m pytest tests/`
-5. Submit a pull request
+# Setting up the local docker image
+Mount the current code into a folder with /workspace
 
 ## Lint
 bash scripts/quality-check.sh. Runs mypy and flake8
 
-## License
 
-MIT License - see LICENSE file for details.
+# Demo Commands

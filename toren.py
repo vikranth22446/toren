@@ -117,16 +117,16 @@ class ClaudeAgent:
         print(f"📝 Processing short description: {truncated}")
 
         # Check quality of the short description
-        quality = self.ai_cli.check_short_description_quality(short_desc)
-        self.ai_cli.print_quality_assessment(quality)
+        # quality = self.ai_cli.check_short_description_quality(short_desc)
+        # self.ai_cli.print_quality_assessment(quality)
 
         # If description is unclear, prompt user
-        if not quality.get("is_clear", False):
-            print("⚠️  The description may be unclear or lack sufficient detail.")
-            response = input("Continue anyway? [y/N]: ").lower()
-            if response != "y":
-                print("⏹️  Task cancelled by user")
-                sys.exit(0)
+        # if not quality.get("is_clear", False):
+        #     print("⚠️  The description may be unclear or lack sufficient detail.")
+        #     response = input("Continue anyway? [y/N]: ").lower()
+        #     if response != "y":
+        #         print("⏹️  Task cancelled by user")
+        #         sys.exit(0)
 
         # Return the short description as the spec content
         return f"## Task Description\n{short_desc}"
@@ -261,9 +261,9 @@ Please review the changes and test as appropriate for your workflow.
 
         if success:
             print(f"✅ Job {job_id} started successfully")
-            print(f"💡 Monitor with: python3 toren.py status --job-id {job_id}")
-            print(f"📋 View logs: python3 toren.py logs {job_id}")
-            print(f"📊 Get summary: python3 toren.py summary {job_id}")
+            print(f"💡 Monitor with: toren status --job-id {job_id}")
+            print(f"📋 View logs: toren logs {job_id}")
+            print(f"📊 Get summary: toren summary {job_id}")
         else:
             print(f"❌ Failed to start job {job_id}")
             self.job_manager.update_job_status(

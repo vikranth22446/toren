@@ -218,8 +218,10 @@ class UIUtilities:
 
         if follow:
             try:
-                subprocess.run(["docker", "logs", "-f", job["container_id"]])
+                process = subprocess.Popen(["docker", "logs", "-f", job["container_id"]])
+                process.wait()
             except KeyboardInterrupt:
+                process.terminate()
                 print("\n👋 Log following stopped")
         else:
             logs = self.job_manager.get_container_logs(job_id)

@@ -4,8 +4,8 @@ set -e
 # Refactored Container Entrypoint - Minimal orchestrator
 # Delegates to specialized modules for maintainability
 
-CONTAINER_LIB_DIR="${CONTAINER_LIB_DIR:-/usr/local/lib/container}"
-CONTAINER_CONFIG_DIR="${CONTAINER_CONFIG_DIR:-/usr/local/etc/container}"
+CONTAINER_LIB_DIR="${CONTAINER_LIB_DIR:-/usr/local/container/lib}"
+CONTAINER_CONFIG_DIR="${CONTAINER_CONFIG_DIR:-/usr/local/container/config}"
 
 # Core environment setup
 BASE_BRANCH="${BASE_BRANCH:-main}"
@@ -21,24 +21,24 @@ source "$CONTAINER_LIB_DIR/git_setup.sh"
 source "$CONTAINER_LIB_DIR/auth_setup.sh" 
 source "$CONTAINER_LIB_DIR/env_setup.sh"
 
-# Record starting commit for diff calculation
+# Setup authentication FIRST (needed for git operations)
+setup_authentication "$AI_PROVIDER"
+
+# Setup git workspace (after authentication is configured)
+setup_git_workspace "$BASE_BRANCH" "$BRANCH_NAME"
+
+# Record starting commit for diff calculation (after git is properly configured)
 STARTING_COMMIT=$(git rev-parse HEAD)
 export STARTING_COMMIT
 echo "📊 Starting commit: ${STARTING_COMMIT:0:8}"
 
-# Create cost data directory for job manager integration
+# # Create cost data directory for job manager integration
 mkdir -p /tmp/cost_data
 
-# Setup language environment
+# # Setup language environment
 setup_language_environment "$LANGUAGE"
 
-# Setup authentication
-setup_authentication "$AI_PROVIDER"
-
-# Setup git workspace
-setup_git_workspace "$BASE_BRANCH" "$BRANCH_NAME"
-
-# Execute AI provider
+# # Execute AI provider
 echo "🤖 Executing $AI_PROVIDER provider..."
 python3 "$CONTAINER_LIB_DIR/ai_executor.py" \
     --provider "$AI_PROVIDER" \
@@ -50,7 +50,7 @@ python3 "$CONTAINER_LIB_DIR/ai_executor.py" \
 
 AI_EXIT_CODE=$?
 
-# Generate final session summary
+# # Generate final session summary
 python3 "$CONTAINER_LIB_DIR/cost_monitor.py" --finalize --starting-commit "$STARTING_COMMIT"
 
 echo "✅ Container execution completed (exit code: $AI_EXIT_CODE)"

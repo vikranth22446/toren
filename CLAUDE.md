@@ -27,7 +27,7 @@ Production-grade autonomous GitHub agent system that processes specifications, e
 ### Basic Commands
 ```bash
 # Run task synchronously
-python3 toren.py run --base-image python:3.11 --spec task.md --branch fix/bug --disable-daemon
+python3 toren.py run --base-image python:3.11 --spec task.md --branch fix/bug
 
 # Run in background (default)
 python3 toren.py run --base-image python:3.11 --issue https://github.com/user/repo/issues/123 --branch fix/issue-123

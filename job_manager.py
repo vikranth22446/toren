@@ -45,7 +45,8 @@ class JobManager:
     VALID_STATUSES = {"queued", "running", "completed", "failed", "cancelled"}
 
     def __init__(self):
-        self.jobs_dir = Path.home() / ".ai_agent" / "jobs"
+        # Path.home() temporariyl full TODO FIXME
+        self.jobs_dir = Path.cwd() / ".ai_agent" / "jobs"
         self.jobs_dir.mkdir(parents=True, exist_ok=True)
 
     def _validate_json_size(self, file_path: Path) -> bool:
@@ -565,12 +566,10 @@ Return only the 5-word title, nothing else."""
 
         container_id = job_data.get("container_id")
         agent_image = job_data.get("agent_image")
-
-        # Stop and remove container if it exists
+        print(f"Cleaning up job {job_id}...", container_id, agent_image)
         if container_id:
             try:
-                # Kill container if still running
-                if job_data.get("status") in ["running", "queued"]:
+                if job_data.get("status") in ["running", "queued", "completed"]:
                     subprocess.run(
                         ["docker", "kill", container_id],
                         capture_output=True,

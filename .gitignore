@@ -121,4 +121,5 @@ dmypy.json
 *.iws
 *.ipr
 
+.ai_agent/
 .ai_cost_data/

@@ -275,6 +275,7 @@ ENTRYPOINT ["/usr/local/container/entrypoint.sh"]
         custom_envs: Optional[List[str]] = None,
         custom_volumes: Optional[List[str]] = None,
         cli_type: str = "claude",
+        issue_number: Optional[str] = None,
     ) -> subprocess.Popen:
         container_name = f"{cli_type}-agent-{job_id}" if job_id else f"{cli_type}-agent"
 
@@ -436,6 +437,22 @@ ENTRYPOINT ["/usr/local/container/entrypoint.sh"]
 
         # Set environment variables for the container instead of command arguments
         docker_cmd.extend(["-e", f"BRANCH_NAME={branch_name}"])
+        
+        # Set GitHub issue number environment variables for notifications
+        if issue_number:
+            # Handle both direct issue numbers and GitHub URLs
+            if "github.com" in issue_number and "/issues/" in issue_number:
+                # Extract issue number from URL like https://github.com/user/repo/issues/123
+                issue_num = issue_number.split("/")[-1]
+                docker_cmd.extend(["-e", f"GITHUB_ISSUE_NUMBER={issue_num}"])
+            elif "github.com" in issue_number and "/pull/" in issue_number:
+                # Extract PR number from URL like https://github.com/user/repo/pull/123
+                pr_num = issue_number.split("/")[-1]
+                docker_cmd.extend(["-e", f"PR_NUMBER={pr_num}"])
+            else:
+                # Assume it's a direct issue/PR number
+                issue_num = issue_number.replace("#", "")
+                docker_cmd.extend(["-e", f"GITHUB_ISSUE_NUMBER={issue_num}"])
         
         # Create task spec file
         import tempfile

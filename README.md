@@ -14,18 +14,11 @@ Using AI agents in async agent environments should be containerized to prevent s
 
 CLI tools are also becoming more common, and Toren makes it easy to swap tools or work directly inside your local dev setup.
 
-Compared to tools like:
+Compared to tools like
 - LangChain Open-SWE — Requires using LangChain services and Daytona for development. Also a local cli tool to manage all of it
 - Claude Code / Gemini — Pull you out of flow to verify steps and requires opening multiple copies of the codebase for multiple tasks.
 - Cursor — Great integration but constantly dictates the next edit, which interrupts your own thinking. For multiple tasks, you need multiple copies of the codebase
 - Claude as a GitHub user — Writing full specs in GitHub is cumbersome; providing them directly is simpler. Setting up with local models/checkpoints is also easier with local Docker abstraction. You are also billed on github action minutes
-
-# General Screenshots
-![alt text](demo_images/overall_cli.png)
-![alt text](demo_images/job_completion.png)
-![alt text](demo_images/status.png)
-![alt text](demo_images/job_start.png)
-![alt text](demo_images/job_logs.png)
 
 Most of this code was AI-generated, but I do go through/refactor and fix it. It cost around $100 to make. 
 
@@ -92,6 +85,8 @@ COPY . /workspace/
 RUN if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 ```
 
+Add a config.json if you want a default base image. check config.json.example
+
 ## Configuration
 
 ## Commands
@@ -124,8 +119,35 @@ Mount the current code into a folder with /workspace
 ## Lint
 bash scripts/quality-check.sh. Runs mypy and flake8
 
+# General Screenshots
+![alt text](demo_images/overall_cli.png)
+![alt text](demo_images/job_completion.png)
+![alt text](demo_images/status.png)
+![alt text](demo_images/job_start.png)
+![alt text](demo_images/job_logs.png)
+
+TODO: make this slightly better as a vid
 
 # Demo Commands
+
+### Toren running on issues/PR
+  toren run --base-image python:3.11 --spec task.md --branch fix/auth-bug
+  toren run --base-image myproject:dev \
+           --issue https://github.com/user/repo/issues/123 \
+           --branch fix/issue-123
+  toren run --base-image myproject:dev \
+           --pr https://github.com/user/repo/issues/123 \
+           --branch fix/issue-123
+
+### Toren Health
+toren health --docker-image python:3.11 --security
+
+This runs Trivy and the container security scans
+
+### Toren utilities
+
+### Providing a spec and having toren 
+
 
 # TODO
 1. Currently the github token provided has too much access. Reduce it's access scope

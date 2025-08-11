@@ -147,6 +147,9 @@ Use /tmp/claude_docs/ for analysis. Working dir: /workspace."""
                 env[key] = value
 
         print(f"🤖 Starting {self.provider} execution...", flush=True)
+        
+        # Post task started notification to GitHub
+        self._post_task_started(task_spec, branch)
 
         # Start AI process with real-time output streaming
         process = subprocess.Popen(
@@ -165,6 +168,9 @@ Use /tmp/claude_docs/ for analysis. Working dir: /workspace."""
         # Wait for completion and get exit code
         exit_code = process.wait()
         log_monitor.stop()
+        
+        # Post completion/failure notification to GitHub
+        self._post_task_completion(exit_code, branch)
 
         return exit_code
 

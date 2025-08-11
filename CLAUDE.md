@@ -114,3 +114,6 @@ claude_agent_runner/
 - ✅ **Flexible Deployment**: Sync/async modes with ML/AI environment support
 - ✅ **Comprehensive Monitoring**: Real-time tracking, AI summaries, cost analysis
 - ✅ **Multi-CLI Ready**: Generic architecture supporting multiple AI CLIs
+
+## Code Style Guidelines
+- **Python Code**: Write clean, readable code without excessive comments. Use docstrings for functions/classes but avoid inline comments unless absolutely necessary for complex logic.

@@ -163,6 +163,70 @@ This runs Trivy and the container security scans
 
 [1] I've heard a few anecdotes from friends and the internet about this [pheneomenon](https://x.com/karpathy/status/1954224651443544436?t=3-wpvaSkkjfaoP45-z7iMA).
 
+# File Directory with Emojis 📂
+
+## Core Python Files
+- 🚀 **toren.py** - Main orchestration script
+- 🤖 **ai_cli_interface.py** - Claude API interface
+- 🐳 **container_manager.py** - Docker operations
+- 💼 **job_manager.py** - Background job management
+- 🛡️ **input_validator.py** - Validation logic
+- 🐙 **github_utils.py** - GitHub API integration
+- 🎨 **ui_utilities.py** - CLI utilities and dashboard
+- 🔧 **cli_parser.py** - Command line parsing
+- 📨 **message_templates.py** - Message formatting
+- 🔐 **benchmark_security.py** - Security benchmarking
+- ⚙️ **setup.py** - Package setup
+
+## Configuration Files
+- 🗂️ **config.json** - Main configuration
+- 📋 **config.json.example** - Configuration template
+- 📝 **requirements.txt** - Python dependencies
+- 🔒 **security-requirements.txt** - Security dependencies
+- 🏗️ **mypy.ini** - Type checking configuration
+
+## Container Files
+- 📦 **Dockerfile** - Container build instructions
+- 🎭 **container/entrypoint.sh** - Container orchestration
+- 🤖 **container/lib/ai_executor.py** - AI CLI runner
+- 🔑 **container/lib/auth_setup.sh** - Authentication setup
+- 🏗️ **container/lib/env_setup.sh** - Environment initialization
+- 📊 **container/lib/cost_monitor.py** - Cost tracking
+- 🌱 **container/lib/git_setup.sh** - Git workspace setup
+
+## Container Configuration
+- 🤖 **container/config/ai_providers.json** - AI provider configs
+- ⚡ **container/config/defaults.json** - Default settings
+- 🌍 **container/config/languages.json** - Language environments
+
+## Documentation
+- 📖 **README.md** - Main project documentation
+- 📋 **CLAUDE.md** - Claude-specific instructions
+- 📥 **INSTALL.md** - Installation guide
+- 📚 **scripts/README.md** - Scripts documentation
+
+## Scripts
+- 🔍 **scripts/scan_diff.sh** - Git diff security scan
+- 🐳 **scripts/scan_containers.sh** - Container vulnerability scan
+- 🪝 **scripts/install-hooks.sh** - Pre-commit hook installer
+- 📈 **scripts/performance_analysis.sh** - Performance monitoring
+- ✅ **scripts/quality-check.sh** - Code quality validation
+- 🛡️ **scripts/run_security_scan.sh** - Comprehensive security scan
+- 🔒 **scripts/pre-commit-hook** - Pre-commit security hook
+
+## Test Files
+- 🧪 **tests/test_ai_cli_interface.py** - AI interface tests
+- 🐳 **tests/test_container_manager.py** - Container manager tests
+- 🐙 **tests/test_github_utils.py** - GitHub utilities tests
+- 🛡️ **tests/test_input_validator.py** - Input validation tests
+- 🔗 **tests/test_integration_claude_agent.py** - Integration tests
+- 💼 **tests/test_job_manager.py** - Job manager tests
+- 🎨 **tests/test_ui_utilities.py** - UI utilities tests
+
+## Other Files
+- 🔐 **claude-security-scan** - Security scanning tool
+- 🏷️ **toren.egg-info/** - Package metadata directory
+
 # Ack
 
 Thanks to @Tenzen for help 

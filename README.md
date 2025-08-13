@@ -1,4 +1,4 @@
-# Toren - Multi-AI CLI Agent Runner
+# Toren - Local Multi-AI CLI Agent Runner
 
 TLDR:
 > Modern LLMs are powerful but slow[1]. You cannot test ideas in parallel because both your codebase and your thought process are locked for each run.

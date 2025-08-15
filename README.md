@@ -166,3 +166,9 @@ This runs Trivy and the container security scans
 # Ack
 
 Thanks to @Tenzen for help 
+
+# Known Issues
+## Claude login error
+Weird edge case with .claude.json config:
+
+Currently local login on Mac doesn't seem to have primaryApiKey. This just involves loading up the container and copying the primaryApiKey back to your Mac's .claude.json

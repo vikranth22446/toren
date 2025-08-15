@@ -150,6 +150,12 @@ ENTRYPOINT ["/usr/local/container/entrypoint.sh"]
                 except OSError:
                     pass
 
+    def cleanup_process_temp_files(self, process):
+        """Clean up temp files associated with a container process"""
+        if hasattr(process, '_temp_files') and process._temp_files:
+            self._cleanup_temp_files(process._temp_files)
+            process._temp_files = []
+
     def build_agent_image(self, base_image: str, cli_type: str = "claude") -> str:
         agent_image = (
             f"{cli_type}-agent-{hashlib.md5(base_image.encode()).hexdigest()[:10]}"
@@ -461,7 +467,6 @@ ENTRYPOINT ["/usr/local/container/entrypoint.sh"]
                 issue_num = issue_number.replace("#", "")
                 docker_cmd.extend(["-e", f"GITHUB_ISSUE_NUMBER={issue_num}"])
         
-        # Create task spec file
         import tempfile
         task_spec_fd, task_spec_path = tempfile.mkstemp(suffix=".md", prefix="task_spec_")
         try:
@@ -530,9 +535,9 @@ ENTRYPOINT ["/usr/local/container/entrypoint.sh"]
                 if temp_files:
                     self._cleanup_temp_files(temp_files)
                 return None
-            # Clean up temp credential files after container starts
-            if temp_files:
-                self._cleanup_temp_files(temp_files)
+            # Note: temp files are NOT cleaned up here to preserve Docker mounts
+            # Store temp files on process object for later cleanup by caller
+            process._temp_files = temp_files
             return process
         except Exception as e:
             # Clean up temp files if container start failed
